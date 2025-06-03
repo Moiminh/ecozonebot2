@@ -10,8 +10,6 @@ from .utils import try_send # Để gửi tin nhắn trong on_command_error
 
 # --- Khởi tạo Bot ---
 # Xác định các quyền (Intents) mà bot cần.
-# message_content là quyền quan trọng để bot có thể đọc nội dung tin nhắn.
-# members cũng cần thiết nếu bạn muốn truy cập thông tin thành viên (ví dụ khi họ tham gia server).
 intents = nextcord.Intents.default()
 intents.message_content = True # BẮT BUỘC phải bật trong Discord Developer Portal
 intents.members = True       # BẮT BUỘC phải bật trong Discord Developer Portal nếu dùng
@@ -35,7 +33,7 @@ async def on_ready():
     print(f'Để xem trợ giúp, hãy gõ /help trên Discord (nếu cog Misc đã được tải).')
     print(f'--------------------------------------------------')
     # Bạn có thể đặt trạng thái cho bot ở đây, ví dụ:
-    # await bot.change_presence(activity=nextcord.Game(name=f"{COMMAND_PREFIX}help hoặc /help"))
+    # await bot.change_presence(activity=nextcord.Game(name=f"Dùng {COMMAND_PREFIX}help hoặc /help"))
 
 
 @bot.event
@@ -60,9 +58,10 @@ async def on_message(message: nextcord.Message):
         return
 
     # Xử lý lệnh tắt (không cần prefix)
-    # Lấy cấu hình của server từ database
     guild_config = get_guild_config(message.guild.id)
-    active_bare_channels = guild_config.get("bare_command_active_channels", []) # Lấy danh sách kênh được bật lệnh tắt
+    active_bare_channels = guild_config.get("bare_command_active_channels", [])
+    
+    process_as_command = True # Mặc định là sẽ cho bot xử lý lệnh
 
     # Kiểm tra xem kênh hiện tại có nằm trong danh sách active_bare_channels không
     # và tin nhắn có bắt đầu bằng prefix không (nếu có prefix thì đó là lệnh thường)
@@ -76,10 +75,21 @@ async def on_message(message: nextcord.Message):
             
             # Tạo lại nội dung tin nhắn với prefix và tên lệnh gốc
             message.content = f"{COMMAND_PREFIX}{actual_command_name} {args_for_bare_command}".strip()
-            # print(f"Bare command: '{content}' -> '{message.content}' in G:{message.guild.id} C:{message.channel.id}")
+            # print(f"Bare command (transformed): '{content}' -> '{message.content}'")
+            # Vẫn để process_as_command = True vì đây là lệnh tắt hợp lệ
+        else:
+            # Đây là trường hợp từ không có trong BARE_COMMAND_MAP trong kênh auto
+            # và không có prefix. Có thể là chat thường hoặc gõ nhầm lệnh tắt.
+            # Chúng ta sẽ gửi cảnh báo nếu tin nhắn trông giống một nỗ lực dùng lệnh tắt (ngắn).
+            if len(content.split()) <= 3: # Ngưỡng tùy chỉnh, ví dụ 3 từ để coi là nỗ lực gõ lệnh
+                 await try_send(message.channel, content=f"❌ Lệnh tắt `{command_candidate}` không hợp lệ hoặc không được hỗ trợ trong chế độ này. Hãy dùng `/help` để xem các lệnh và lệnh tắt có sẵn.")
+            
+            process_as_command = False # Không xử lý như một lệnh nữa vì nó không phải lệnh tắt hợp lệ (hoặc là chat thường)
+            # print(f"Bare command (ignored/warned): '{content}' in G:{message.guild.id} C:{message.channel.id}")
     
-    # Sau khi đã xử lý (hoặc không) lệnh tắt, cho bot xử lý các lệnh (có prefix)
-    await bot.process_commands(message)
+    # Chỉ xử lý lệnh nếu process_as_command là True
+    if process_as_command:
+        await bot.process_commands(message)
 
 
 @bot.event
@@ -89,53 +99,36 @@ async def on_command_error(ctx: commands.Context, error):
     """
     # Bỏ qua lỗi CommandNotFound để tránh spam console hoặc chat
     if isinstance(error, commands.CommandNotFound):
-        # await try_send(ctx, content=f"Lệnh `{ctx.invoked_with}` không tồn tại. Dùng `/help` để xem danh sách lệnh.", ephemeral=True, delete_after=10)
-        return # Không làm gì cả
+        return 
 
-    # Lỗi thiếu tham số bắt buộc
     elif isinstance(error, commands.MissingRequiredArgument):
         cmd_name = ctx.command.name if ctx.command else "lệnh này"
-        # Cố gắng cung cấp hướng dẫn sử dụng lệnh nếu có thể
-        help_msg_for_cmd = f"Gõ `/help tên_lệnh {cmd_name}` để xem chi tiết." if bot.get_command(cmd_name) else ""
+        help_msg_for_cmd = f"Gõ `/help lệnh {cmd_name}` để xem chi tiết." if bot.get_command(cmd_name) else ""
         await try_send(ctx, content=f"Bạn thiếu tham số `{error.param.name}` cho lệnh `{cmd_name}`. {help_msg_for_cmd}")
 
-    # Lỗi sai kiểu dữ liệu của tham số
     elif isinstance(error, commands.BadArgument):
-        await try_send(ctx, content=f"Đối số bạn cung cấp không hợp lệ. Vui lòng kiểm tra lại. Lỗi: {error}")
+        await try_send(ctx, content=f"Đối số bạn cung cấp không hợp lệ. Vui lòng kiểm tra lại. Lỗi chi tiết: {error}")
 
-    # Lỗi lệnh đang trong thời gian chờ (cooldown)
     elif isinstance(error, commands.CommandOnCooldown):
         await try_send(ctx, content=f"Lệnh `{ctx.command.name}` đang trong thời gian chờ. Bạn cần đợi **{error.retry_after:.1f} giây** nữa.")
 
-    # Lỗi thiếu quyền hạn (chung)
     elif isinstance(error, commands.MissingPermissions):
-        # Lỗi này sẽ được xử lý cụ thể hơn ở error handler của từng lệnh nếu có
-        # (ví dụ @auto_toggle_bare_commands.error)
-        # Nếu không có error handler riêng, nó sẽ rơi vào đây.
         perms_list = ", ".join([f"`{perm.replace('_', ' ').title()}`" for perm in error.missing_permissions])
         await try_send(ctx, content=f"Bạn không có đủ quyền để dùng lệnh này. Thiếu quyền: {perms_list}.")
 
-    # Lỗi chỉ chủ sở hữu bot mới được dùng
     elif isinstance(error, commands.NotOwner):
         await try_send(ctx, content="Lệnh này chỉ dành cho chủ sở hữu của Bot.")
 
-    # Lỗi từ các hàm check (ví dụ: is_guild_owner_check, hoặc các check permission khác)
-    # Các hàm error handler riêng của lệnh (ví dụ @add_money.error) nên xử lý CheckFailure của chính nó.
-    # Đây là fallback nếu không có error handler riêng.
     elif isinstance(error, commands.CheckFailure):
-        # Thông thường, các hàm check sẽ có thông báo lỗi riêng trong error handler của lệnh.
-        # Ví dụ: Lệnh addmoney có @add_money.error sẽ xử lý commands.CheckFailure từ is_guild_owner_check.
-        # Nếu lỗi CheckFailure không được xử lý ở cấp lệnh, nó sẽ đến đây.
+        # Các hàm error handler riêng của lệnh (ví dụ @add_money.error) nên xử lý CheckFailure của chính nó.
+        # Đây là fallback.
         print(f"Lỗi CheckFailure không được xử lý cho lệnh '{ctx.command.name if ctx.command else 'unknown'}': {error}")
         await try_send(ctx, content="Bạn không đáp ứng điều kiện để sử dụng lệnh này.")
     
-    # Các lỗi không mong muốn khác
     else:
-        # In lỗi ra console để debug
         print(f"Lỗi không xác định trong lệnh '{ctx.command.name if ctx.command else 'unknown'}':")
         print(f"Loại lỗi: {type(error).__name__}")
         print(f"Thông điệp lỗi: {error}")
-        # Gửi thông báo lỗi chung cho người dùng
         await try_send(ctx, content="Ối! Đã có lỗi không mong muốn xảy ra khi thực hiện lệnh. Vui lòng thử lại sau. 😵‍💫")
 
 
@@ -143,25 +136,34 @@ async def on_command_error(ctx: commands.Context, error):
 def load_all_cogs():
     """
     Tải tất cả các file .py trong thư mục 'cogs' dưới dạng extension (cog) cho bot.
-    Thư mục 'cogs' phải nằm cùng cấp với thư mục 'core'.
     """
     print(f'--------------------------------------------------')
     print(f'Đang tải các Cogs...')
     loaded_cogs_count = 0
-    # Đường dẫn đến thư mục cogs, giả sử 'core' và 'cogs' nằm trong cùng thư mục 'bot'
-    # và file này (bot.py) nằm trong 'core'
-    cogs_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'cogs') # Đi lên 1 cấp từ 'core', rồi vào 'cogs'
+    # Giả định rằng file này (bot.py) nằm trong thư mục 'core'
+    # và thư mục 'cogs' nằm cùng cấp với 'core' (tức là trong 'bot/cogs')
+    # __file__ là đường dẫn đến file hiện tại (bot/core/bot.py)
+    # os.path.dirname(__file__) -> bot/core
+    # os.path.dirname(os.path.dirname(__file__)) -> bot
+    # os.path.join(..., 'cogs') -> bot/cogs
+    current_script_path = os.path.dirname(os.path.abspath(__file__)) # bot/core
+    cogs_directory_path = os.path.join(os.path.dirname(current_script_path), 'cogs') # bot/cogs
 
-    for filename in os.listdir(cogs_dir):
-        # Chỉ load các file Python, không phải thư mục con hay file ẩn
-        if filename.endswith('.py') and not filename.startswith('_'):
-            cog_name = filename[:-3] # Bỏ đuôi '.py'
+
+    for filename in os.listdir(cogs_directory_path):
+        if filename.endswith('.py') and not filename.startswith('_'): # Bỏ qua các file như __init__.py
+            cog_name = filename[:-3]
             try:
-                # Đường dẫn để load extension là 'tên_thư_mục_cogs.tên_file_cog'
-                # Ví dụ: nếu thư mục cogs tên là 'cogs', file là 'economy.py' -> 'cogs.economy'
-                # Cần đảm bảo thư mục 'cogs' nằm trong PYTHONPATH hoặc cùng cấp với file chạy chính (main.py)
-                # và main.py chạy từ thư mục cha của 'bot'
-                bot.load_extension(f'cogs.{cog_name}') # Quan trọng: 'cogs' là tên thư mục
+                # Đường dẫn để load extension là 'tên_thư_mục_cha_của_cogs.tên_thư_mục_cogs.tên_file_cog'
+                # Nếu main.py chạy từ thư mục cha của 'bot', và cấu trúc là bot/cogs/cog.py
+                # thì đường dẫn sẽ là 'bot.cogs.cog_name'
+                # Tuy nhiên, vì main.py nằm trong bot/, và load_all_cogs được gọi từ đó (thông qua import core.bot)
+                # và bot instance cũng được tạo ở đây (core.bot),
+                # thì khi load_extension, nó sẽ tìm từ thư mục làm việc của main.py hoặc PYTHONPATH.
+                # Nếu main.py nằm trong `bot/` và chạy bằng `python main.py` (từ trong thư mục `bot`),
+                # thì đường dẫn load sẽ là `cogs.cog_name`.
+                # Đây là cách Nextcord thường xử lý khi file chạy chính và thư mục cogs có mối quan hệ rõ ràng.
+                bot.load_extension(f'cogs.{cog_name}')
                 print(f'  [+] Đã tải thành công Cog: {cog_name}')
                 loaded_cogs_count += 1
             except Exception as e:
@@ -170,5 +172,3 @@ def load_all_cogs():
                 print(f'      Thông điệp: {e}')
     print(f'--- Hoàn tất! Đã tải {loaded_cogs_count} Cogs. ---')
     print(f'--------------------------------------------------')
-
-# Lưu ý: hàm load_all_cogs() sẽ được gọi từ file main.py trước khi bot.run()
