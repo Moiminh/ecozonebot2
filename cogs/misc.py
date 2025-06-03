@@ -3,7 +3,7 @@ import nextcord
 from nextcord.ext import commands
 
 # Import các thành phần cần thiết từ package 'core'
-from core.database import load_data
+from core.database import load_data # Leaderboard/richest thường load toàn bộ data để sắp xếp
 from core.utils import try_send
 from core.config import (
     COMMAND_PREFIX, CURRENCY_SYMBOL, WORK_COOLDOWN, DAILY_COOLDOWN,
@@ -15,11 +15,10 @@ class MiscCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    # ... (các lệnh leaderboard, richest giữ nguyên như trước) ...
     @commands.command(name='leaderboard', aliases=['lb', 'top'])
     async def leaderboard(self, ctx: commands.Context, page: int = 1):
         """Hiển thị bảng xếp hạng những người giàu nhất server."""
-        data = load_data() 
+        data = load_data() # Load toàn bộ dữ liệu từ file
         guild_id = str(ctx.guild.id)
 
         if guild_id not in data or not data[guild_id] or all(key == "config" for key in data[guild_id]):
@@ -125,7 +124,7 @@ class MiscCog(commands.Cog):
     async def help_slash_command(self,
                                  interaction: nextcord.Interaction,
                                  command_name: str = nextcord.SlashOption(
-                                     name="lệnh", # Đổi tên hiển thị cho thân thiện hơn
+                                     name="lệnh", 
                                      description="Tên lệnh prefix bạn muốn xem chi tiết (ví dụ: work, balance).",
                                      required=False,
                                      default=None
@@ -142,10 +141,9 @@ class MiscCog(commands.Cog):
                     f"*Lưu ý: Hầu hết các lệnh đều có tên gọi tắt (alias) được liệt kê trong chi tiết lệnh.*\n"
                     f"Quản trị viên có thể dùng `{prefix}auto` để bật/tắt lệnh không cần prefix trong một kênh."
                 ),
-                color=nextcord.Color.dark_embed() # Thử màu khác cho đẹp
+                color=nextcord.Color.dark_theme(), # <<< ĐÃ SỬA Ở ĐÂY (từ dark_embed() thành dark_theme())
             )
             
-            # Danh sách các lệnh được phân loại (đảm bảo cập nhật khi thêm/xóa lệnh)
             embed.add_field(name="🏦 Tài Khoản & Tổng Quan",
                             value="`balance` `bank` `deposit` `withdraw` `transfer` `leaderboard` `richest` `inventory`",
                             inline=False)
@@ -165,8 +163,7 @@ class MiscCog(commands.Cog):
             embed.set_footer(text=f"Bot được phát triển bởi [Tên của bạn hoặc Bot]. Gõ /help lệnh <tên_lệnh> để biết thêm chi tiết.")
             await try_send(interaction, embed=embed, ephemeral=True)
         else:
-            # Hiển thị chi tiết cho một lệnh cụ thể
-            cmd_name_to_find = command_name.lower().lstrip(prefix) # Người dùng có thể gõ "work" hoặc "!work"
+            cmd_name_to_find = command_name.lower().lstrip(prefix) 
             command_obj = self.bot.get_command(cmd_name_to_find)
             
             if not command_obj:
@@ -175,25 +172,20 @@ class MiscCog(commands.Cog):
 
             embed = nextcord.Embed(title=f"📘 Chi tiết lệnh: {prefix}{command_obj.name}", color=nextcord.Color.green())
             
-            # Mô tả lệnh (lấy từ docstring)
-            help_text = command_obj.help # Docstring đầy đủ
+            help_text = command_obj.help 
             if not help_text:
-                help_text = command_obj.short_doc or "Lệnh này chưa có mô tả chi tiết." # Mô tả ngắn nếu có
+                help_text = command_obj.short_doc or "Lệnh này chưa có mô tả chi tiết." 
             embed.description = help_text
 
-            # Cách sử dụng (signature)
             usage = f"`{prefix}{command_obj.name} {command_obj.signature}`".strip()
             embed.add_field(name="📝 Cách sử dụng", value=usage, inline=False)
 
-            # Tên gọi khác (aliases)
             if command_obj.aliases:
                 aliases_str = ", ".join([f"`{prefix}{alias}`" for alias in command_obj.aliases])
                 embed.add_field(name="🏷️ Tên gọi khác (Aliases)", value=aliases_str, inline=False)
             else:
                 embed.add_field(name="🏷️ Tên gọi khác (Aliases)", value="Lệnh này không có tên gọi tắt.", inline=False)
 
-
-            # Thông tin cooldown (lấy từ config)
             manual_cooldown_commands = {
                 "work": WORK_COOLDOWN, "daily": DAILY_COOLDOWN, "beg": BEG_COOLDOWN,
                 "rob": ROB_COOLDOWN, "crime": CRIME_COOLDOWN, "fish": FISH_COOLDOWN,
@@ -206,15 +198,5 @@ class MiscCog(commands.Cog):
                 else: cd_text = f"{cd_seconds} giây"
                 embed.add_field(name="⏳ Thời gian chờ (Cooldown)", value=cd_text, inline=False)
 
-            # Yêu cầu quyền hạn (ví dụ)
             if command_obj.name in ["addmoney", "removemoney"]:
-                embed.add_field(name="🔑 Yêu cầu", value="Chỉ Chủ Server (Người tạo server).", inline=False)
-            elif command_obj.name in ["auto", "mutebot", "unmutebot"]:
-                embed.add_field(name="🔑 Yêu cầu", value="Quyền `Administrator` trong server.", inline=False)
-            
-            await try_send(interaction, embed=embed, ephemeral=True)
-
-# Hàm setup để bot có thể load cog này
-def setup(bot: commands.Bot):
-    bot.add_cog(MiscCog(bot))
-
+                embed
