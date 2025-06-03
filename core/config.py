@@ -1,11 +1,11 @@
 # bot/core/config.py
-from datetime import timedelta
+from datetime import timedelta # Mặc dù không dùng trực tiếp, có thể hữu ích cho tương lai
 
 # --- Bot Configuration ---
-# BOT_TOKEN sẽ được yêu cầu nhập khi chạy bot, không lưu cứng ở đây.
-BOT_TOKEN = None # Để None hoặc có thể xóa dòng này, nhưng để None giúp rõ ràng hơn
+# BOT_TOKEN sẽ được yêu cầu nhập khi chạy bot từ main.py, không lưu cứng ở đây.
+BOT_TOKEN = None
 COMMAND_PREFIX = '!'
-ECONOMY_FILE = 'economy.json' # Đường dẫn tương đối tới file economy.json (so với vị trí chạy main.py)
+ECONOMY_FILE = 'economy.json' # Đường dẫn tương đối tới file economy.json
 CURRENCY_SYMBOL = "💰"
 
 # --- Cooldowns (seconds) ---
@@ -54,8 +54,7 @@ BARE_COMMAND_MAP = {
     "crime": "crime",
     "fish": "fish",
     "shop": "shop", "store": "shop",
-    "bank": "bank"
+    "bank": "bank",
+    "buy": "buy",       # Đã thêm vào
+    "sell": "sell"      # Đã thêm vào
 }
-
-
-
