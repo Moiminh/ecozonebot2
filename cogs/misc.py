@@ -3,7 +3,7 @@ import nextcord
 from nextcord.ext import commands
 
 # Import các thành phần cần thiết từ package 'core'
-from core.database import load_data # Leaderboard/richest thường load toàn bộ data để sắp xếp
+from core.database import load_data
 from core.utils import try_send
 from core.config import (
     COMMAND_PREFIX, CURRENCY_SYMBOL, WORK_COOLDOWN, DAILY_COOLDOWN,
@@ -18,7 +18,7 @@ class MiscCog(commands.Cog):
     @commands.command(name='leaderboard', aliases=['lb', 'top'])
     async def leaderboard(self, ctx: commands.Context, page: int = 1):
         """Hiển thị bảng xếp hạng những người giàu nhất server."""
-        data = load_data() # Load toàn bộ dữ liệu từ file
+        data = load_data()
         guild_id = str(ctx.guild.id)
 
         if guild_id not in data or not data[guild_id] or all(key == "config" for key in data[guild_id]):
@@ -141,7 +141,7 @@ class MiscCog(commands.Cog):
                     f"*Lưu ý: Hầu hết các lệnh đều có tên gọi tắt (alias) được liệt kê trong chi tiết lệnh.*\n"
                     f"Quản trị viên có thể dùng `{prefix}auto` để bật/tắt lệnh không cần prefix trong một kênh."
                 ),
-                color=nextcord.Color.dark_theme(), # <<< ĐÃ SỬA Ở ĐÂY (từ dark_embed() thành dark_theme())
+                color=nextcord.Color.dark_theme(), # Đã sửa lỗi màu ở đây
             )
             
             embed.add_field(name="🏦 Tài Khoản & Tổng Quan",
@@ -160,7 +160,7 @@ class MiscCog(commands.Cog):
                             value=f"`{prefix}addmoney` `{prefix}removemoney` `{prefix}auto` `{prefix}mutebot` `{prefix}unmutebot`",
                             inline=False)
             
-            embed.set_footer(text=f"Bot được phát triển bởi [Tên của bạn hoặc Bot]. Gõ /help lệnh <tên_lệnh> để biết thêm chi tiết.")
+            embed.set_footer(text=f"Bot được phát triển bởi MinhBeo8. Gõ /help lệnh <tên_lệnh> để biết thêm chi tiết.") # Bạn có thể thay tên ở đây
             await try_send(interaction, embed=embed, ephemeral=True)
         else:
             cmd_name_to_find = command_name.lower().lstrip(prefix) 
@@ -199,4 +199,16 @@ class MiscCog(commands.Cog):
                 embed.add_field(name="⏳ Thời gian chờ (Cooldown)", value=cd_text, inline=False)
 
             if command_obj.name in ["addmoney", "removemoney"]:
-                embed
+                embed.add_field(name="🔑 Yêu cầu", value="Chỉ Chủ Server (Người tạo server).", inline=False)
+            elif command_obj.name in ["auto", "mutebot", "unmutebot"]:
+                embed.add_field(name="🔑 Yêu cầu", value="Quyền `Administrator` trong server.", inline=False)
+            
+            await try_send(interaction, embed=embed, ephemeral=True)
+
+# ================================================================================
+# ĐÂY LÀ PHẦN QUAN TRỌNG ĐỂ SỬA LỖI NoEntryPointError
+# Đảm bảo hàm setup(bot) này nằm ở cuối file và có căn lề đúng (không thụt vào trong class)
+# ================================================================================
+def setup(bot: commands.Bot):
+    bot.add_cog(MiscCog(bot))
+# ================================================================================
