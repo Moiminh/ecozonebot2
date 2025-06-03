@@ -130,6 +130,13 @@ class MiscCog(commands.Cog):
                                      default=None
                                  )):
         """Hiển thị danh sách các lệnh hoặc thông tin chi tiết về một lệnh (prefix) cụ thể."""
+        
+        # ================================================================================
+        # THAY ĐỔI QUAN TRỌNG: Thêm defer() ở đây
+        # ================================================================================
+        await interaction.response.defer(ephemeral=True)
+        # ================================================================================
+
         prefix = COMMAND_PREFIX
         
         if not command_name: # Hiển thị menu trợ giúp chung
@@ -141,7 +148,7 @@ class MiscCog(commands.Cog):
                     f"*Lưu ý: Hầu hết các lệnh đều có tên gọi tắt (alias) được liệt kê trong chi tiết lệnh.*\n"
                     f"Quản trị viên có thể dùng `{prefix}auto` để bật/tắt lệnh không cần prefix trong một kênh."
                 ),
-                color=nextcord.Color.dark_theme(), # Đã sửa lỗi màu ở đây
+                color=nextcord.Color.dark_theme(), 
             )
             
             embed.add_field(name="🏦 Tài Khoản & Tổng Quan",
@@ -160,8 +167,9 @@ class MiscCog(commands.Cog):
                             value=f"`{prefix}addmoney` `{prefix}removemoney` `{prefix}auto` `{prefix}mutebot` `{prefix}unmutebot`",
                             inline=False)
             
-            embed.set_footer(text=f"Bot được phát triển bởi MinhBeo8. Gõ /help lệnh <tên_lệnh> để biết thêm chi tiết.") # Bạn có thể thay tên ở đây
-            await try_send(interaction, embed=embed, ephemeral=True)
+            embed.set_footer(text=f"Bot được phát triển bởi MinhBeo8. Gõ /help lệnh <tên_lệnh> để biết thêm chi tiết.")
+            # Vì đã defer, try_send sẽ tự động dùng interaction.followup.send
+            await try_send(interaction, embed=embed, ephemeral=True) 
         else:
             cmd_name_to_find = command_name.lower().lstrip(prefix) 
             command_obj = self.bot.get_command(cmd_name_to_find)
@@ -205,10 +213,6 @@ class MiscCog(commands.Cog):
             
             await try_send(interaction, embed=embed, ephemeral=True)
 
-# ================================================================================
-# ĐÂY LÀ PHẦN QUAN TRỌNG ĐỂ SỬA LỖI NoEntryPointError
-# Đảm bảo hàm setup(bot) này nằm ở cuối file và có căn lề đúng (không thụt vào trong class)
-# ================================================================================
 def setup(bot: commands.Bot):
     bot.add_cog(MiscCog(bot))
-# ================================================================================
+
