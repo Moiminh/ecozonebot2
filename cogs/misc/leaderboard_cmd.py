@@ -2,15 +2,17 @@
 import nextcord
 from nextcord.ext import commands
 import math 
+import logging # <<< THÊM IMPORT NÀY
 
 from core.database import load_data
 from core.utils import try_send 
 from core.config import CURRENCY_SYMBOL
-from core.icons import ICON_LEADERBOARD, ICON_INFO, ICON_MONEY_BAG, ICON_PROFILE # Thêm ICON_PROFILE nếu muốn
+from core.icons import ICON_LEADERBOARD, ICON_INFO, ICON_MONEY_BAG, ICON_PROFILE, ICON_ERROR # Đảm bảo có ICON_ERROR
+
+logger = logging.getLogger(__name__) # <<< LẤY LOGGER CHO MODULE NÀY
 
 ITEMS_PER_PAGE = 10
 
-# --- Lớp LeaderboardView (Giữ nguyên như phiên bản có nút bấm) ---
 class LeaderboardView(nextcord.ui.View):
     def __init__(self, *, sorted_users_data: list, original_author: nextcord.User, bot_instance: commands.Bot):
         super().__init__(timeout=180) 
@@ -21,6 +23,7 @@ class LeaderboardView(nextcord.ui.View):
         self.current_page = 1
         self.total_pages = math.ceil(len(self.sorted_users_data) / ITEMS_PER_PAGE)
         self.message = None 
+        logger.debug(f"LeaderboardView initialized for {original_author.name}. Total pages: {self.total_pages}")
 
         self.first_page_button = nextcord.ui.Button(label="⏪ Về đầu", style=nextcord.ButtonStyle.blurple, custom_id="lb_first")
         self.prev_page_button = nextcord.ui.Button(label="◀️ Trước", style=nextcord.ButtonStyle.primary, custom_id="lb_prev")
@@ -53,8 +56,10 @@ class LeaderboardView(nextcord.ui.View):
             self.prev_page_button.disabled = (self.current_page == 1)
             self.next_page_button.disabled = (self.current_page == self.total_pages)
             self.last_page_button.disabled = (self.current_page == self.total_pages)
+        logger.debug(f"Leaderboard buttons updated. Page: {self.current_page}/{self.total_pages}. Prev: {not self.prev_page_button.disabled}, Next: {not self.next_page_button.disabled}")
 
     async def generate_embed_for_current_page(self) -> nextcord.Embed:
+        logger.debug(f"Generating leaderboard embed for page {self.current_page}")
         start_index = (self.current_page - 1) * ITEMS_PER_PAGE
         end_index = start_index + ITEMS_PER_PAGE
         
@@ -75,8 +80,8 @@ class LeaderboardView(nextcord.ui.View):
                     description_parts.append(f"{rank_display}. {user_obj.name} - {ICON_MONEY_BAG} **{total_wealth:,}** {CURRENCY_SYMBOL}")
                     rank_display += 1
                 except (nextcord.NotFound, ValueError, KeyError) as e:
-                    print(f"Leaderboard View: Không thể fetch/xử lý user ID {user_id_str}. Lỗi: {e}")
-                    description_parts.append(f"{rank_display}. *Không thể tải thông tin user ID: {user_id_str}*")
+                    logger.warning(f"Leaderboard View: Không thể fetch/xử lý user ID {user_id_str} cho trang {self.current_page}. Lỗi: {e}")
+                    description_parts.append(f"{rank_display}. *{ICON_WARNING} Không thể tải thông tin user ID: {user_id_str}*")
                     rank_display +=1
                     continue
             
@@ -89,59 +94,75 @@ class LeaderboardView(nextcord.ui.View):
         return embed
 
     async def update_message(self, interaction: nextcord.Interaction):
+        logger.debug(f"Leaderboard updating message to page {self.current_page} for {interaction.user.name}")
         self._update_button_states()
         new_embed = await self.generate_embed_for_current_page()
-        await interaction.response.edit_message(embed=new_embed, view=self)
+        try:
+            await interaction.response.edit_message(embed=new_embed, view=self)
+            logger.debug(f"Leaderboard message edited successfully for page {self.current_page}.")
+        except nextcord.HTTPException as e:
+            logger.error(f"Lỗi HTTP khi edit leaderboard message: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Lỗi không xác định khi edit leaderboard message: {e}", exc_info=True)
+
 
     async def interaction_check(self, interaction: nextcord.Interaction) -> bool:
         if interaction.user.id != self.original_author.id:
+            logger.warning(f"User {interaction.user.id} ({interaction.user.name}) cố gắng tương tác với leaderboard của {self.original_author.id}")
             await interaction.response.send_message(f"{ICON_ERROR} Bạn không phải là người yêu cầu bảng xếp hạng này!", ephemeral=True)
             return False
         return True
 
     async def go_to_first_page(self, interaction: nextcord.Interaction):
+        logger.debug(f"Leaderboard: {interaction.user.name} bấm nút 'Về đầu'. Trang hiện tại: {self.current_page}")
         self.current_page = 1
         await self.update_message(interaction)
 
     async def go_to_previous_page(self, interaction: nextcord.Interaction):
+        logger.debug(f"Leaderboard: {interaction.user.name} bấm nút 'Trước'. Trang hiện tại: {self.current_page}")
         if self.current_page > 1:
             self.current_page -= 1
         await self.update_message(interaction)
 
     async def go_to_next_page(self, interaction: nextcord.Interaction):
+        logger.debug(f"Leaderboard: {interaction.user.name} bấm nút 'Sau'. Trang hiện tại: {self.current_page}")
         if self.current_page < self.total_pages:
             self.current_page += 1
         await self.update_message(interaction)
 
     async def go_to_last_page(self, interaction: nextcord.Interaction):
+        logger.debug(f"Leaderboard: {interaction.user.name} bấm nút 'Đến cuối'. Trang hiện tại: {self.current_page}")
         self.current_page = self.total_pages
         await self.update_message(interaction)
         
     async def on_timeout(self):
-        if self.message:
+        logger.info(f"Leaderboard View cho {self.original_author.name} đã hết hạn (timeout).")
+        if self.message: 
             for item in self.children:
-                item.disabled = True
+                item.disabled = True 
             try:
                 current_embed = self.message.embeds[0] if self.message.embeds else None
                 await self.message.edit(embed=current_embed, view=self) 
+                logger.debug("Đã vô hiệu hóa các nút trên Leaderboard View do timeout.")
             except nextcord.NotFound:
-                print("Leaderboard View Timeout: Không tìm thấy tin nhắn để edit.")
+                logger.warning("Leaderboard View Timeout: Không tìm thấy tin nhắn để edit (có thể đã bị xóa).")
             except nextcord.HTTPException as e:
-                print(f"Leaderboard View Timeout: Lỗi HTTP khi edit tin nhắn: {e}")
+                logger.error(f"Leaderboard View Timeout: Lỗi HTTP khi edit tin nhắn: {e}", exc_info=True)
 
 
-# --- Cog chính chứa lệnh leaderboard ---
 class LeaderboardCommandCog(commands.Cog, name="Leaderboard Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        logger.debug("LeaderboardCommandCog initialized.")
 
     @commands.command(name='leaderboard', aliases=['lb', 'top'])
     async def leaderboard(self, ctx: commands.Context):
-        """Hiển thị bảng xếp hạng những người giàu nhất server và thứ hạng của bạn."""
+        logger.debug(f"Lệnh 'leaderboard' được gọi bởi {ctx.author.name} (ID: {ctx.author.id}) tại guild {ctx.guild.id}.")
         data = load_data()
         guild_id = str(ctx.guild.id)
 
         if guild_id not in data or not data[guild_id] or all(key == "config" for key in data[guild_id]):
+            logger.info(f"Không có dữ liệu leaderboard cho guild {guild_id}.")
             await try_send(ctx, content=f"{ICON_INFO} Hiện tại chưa có ai trên bảng xếp hạng của server này!")
             return
 
@@ -151,20 +172,21 @@ class LeaderboardCommandCog(commands.Cog, name="Leaderboard Command"):
         }
         
         if not guild_user_data: 
+            logger.info(f"Không có user data hợp lệ cho leaderboard guild {guild_id}.")
             await try_send(ctx, content=f"{ICON_INFO} Hiện tại chưa có ai trên bảng xếp hạng của server này!")
             return
             
-        sorted_users_with_data = sorted( # Đổi tên biến cho rõ ràng
+        sorted_users_with_data = sorted(
             guild_user_data.items(), 
             key=lambda item: item[1].get('balance', 0) + item[1].get('bank_balance', 0),
             reverse=True 
         )
 
-        if not sorted_users_with_data: # Kiểm tra lại sau khi sắp xếp
+        if not sorted_users_with_data: 
+            logger.info(f"Không có user nào sau khi sắp xếp cho leaderboard guild {guild_id}.")
             await try_send(ctx, content=f"{ICON_INFO} Không có ai để xếp hạng!")
             return
 
-        # --- PHẦN MỚI: Tìm và thông báo thứ hạng của người dùng ---
         user_rank_message = None
         author_id_str = str(ctx.author.id)
         
@@ -173,24 +195,24 @@ class LeaderboardCommandCog(commands.Cog, name="Leaderboard Command"):
                 user_rank = i + 1
                 user_total_wealth = user_data_dict.get('balance', 0) + user_data_dict.get('bank_balance', 0)
                 user_rank_message = f"{ICON_PROFILE} {ctx.author.mention}, bạn đang ở **hạng #{user_rank}** với tổng tài sản là **{user_total_wealth:,}** {CURRENCY_SYMBOL}."
+                logger.debug(f"User {ctx.author.name} tìm thấy ở hạng {user_rank} với tài sản {user_total_wealth}.")
                 break 
         
-        if user_rank_message is None: # Nếu không tìm thấy người dùng trong bảng xếp hạng (ví dụ: chưa có tiền)
+        if user_rank_message is None: 
             user_rank_message = f"{ICON_INFO} {ctx.author.mention}, bạn hiện chưa có mặt trên bảng xếp hạng. Hãy cố gắng kiếm thêm {CURRENCY_SYMBOL} nhé!"
+            logger.debug(f"User {ctx.author.name} không có trên bảng xếp hạng.")
         
-        await try_send(ctx, content=user_rank_message) # Gửi thông báo thứ hạng
-        # ---------------------------------------------------------
-
-        # Khởi tạo View
+        await try_send(ctx, content=user_rank_message)
+        
         view = LeaderboardView(sorted_users_data=sorted_users_with_data, original_author=ctx.author, bot_instance=self.bot)
-        
         initial_embed = await view.generate_embed_for_current_page()
         
         try:
             sent_message = await ctx.send(embed=initial_embed, view=view)
             view.message = sent_message 
+            logger.debug(f"Leaderboard ban đầu đã được gửi cho {ctx.author.name}.")
         except nextcord.HTTPException as e:
-            print(f"Lỗi khi gửi tin nhắn leaderboard ban đầu: {e}")
+            logger.error(f"Lỗi khi gửi tin nhắn leaderboard ban đầu cho {ctx.author.name}: {e}", exc_info=True)
             await ctx.send(f"{ICON_ERROR} Không thể hiển thị bảng xếp hạng lúc này.")
 
 
