@@ -11,7 +11,7 @@ LOG_DIRECTORY = "logs"
 GENERAL_LOG_FILENAME_FORMAT = "bot_general_{timestamp}.log"
 ACTION_LOG_FILENAME_FORMAT = "player_actions_{timestamp}.log"
 
-# --- Filter tùy chỉnh cho Action Log File (Giữ nguyên) ---
+# --- Filter tùy chỉnh cho Action Log File ---
 class CogInfoFilter(logging.Filter):
     def __init__(self, prefix='cogs.', level=logging.INFO):
         super().__init__()
@@ -20,7 +20,7 @@ class CogInfoFilter(logging.Filter):
     def filter(self, record):
         return record.name.startswith(self.prefix) and record.levelno == self.level
 
-# --- Discord Webhook Handler (CẬP NHẬT ĐỂ XỬ LÝ 2 LOẠI THÔNG BÁO) ---
+# --- Discord Webhook Handler ---
 class DiscordWebhookHandler(logging.Handler):
     def __init__(self, webhook_url: str):
         super().__init__()
@@ -28,18 +28,15 @@ class DiscordWebhookHandler(logging.Handler):
         self.loop = None
         try:
             self.loop = asyncio.get_running_loop()
-        except RuntimeError: # No running event loop
+        except RuntimeError: 
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
-        # Không cần setFormatter cho handler này vì chúng ta sẽ tự định dạng trong emit
 
     async def _send_payload_async(self, payload: dict):
-        """Hàm riêng để gửi payload một cách không đồng bộ."""
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.post(self.webhook_url, json=payload) as response:
                     if response.status >= 400:
-                        # Ghi lỗi này vào console/file log chính, không gửi lại qua webhook để tránh vòng lặp
                         print(f"[ERROR][DiscordWebhookHandler] Lỗi khi gửi webhook: {response.status} - {await response.text()}")
             except aiohttp.ClientError as e:
                 print(f"[ERROR][DiscordWebhookHandler] Lỗi kết nối khi gửi webhook: {e}")
@@ -47,28 +44,20 @@ class DiscordWebhookHandler(logging.Handler):
                 print(f"[ERROR][DiscordWebhookHandler] Lỗi không xác định khi gửi webhook: {e}")
 
     def emit(self, record: logging.LogRecord):
-        # Handler này sẽ nhận tất cả log từ level đã set cho nó (sẽ là INFO trong setup_logging)
-        # Chúng ta sẽ quyết định gửi gì dựa trên record.levelno và record.name
         payload = None
         log_time = datetime.fromtimestamp(record.created)
 
-        if record.levelno >= logging.ERROR: # Xử lý lỗi ERROR và CRITICAL
-            # Định dạng Embed chi tiết cho lỗi
-            embed_color = 0xff0000 if record.levelno == logging.ERROR else 0xcc0000 
-            
-            # Lấy thông điệp gốc, không qua formatter của handler (nếu có)
+        if record.levelno >= logging.ERROR:
             message_content = record.getMessage() 
-            
             description_parts = [
                 f"**Logger:** `{record.name}`",
-                f"**Thông điệp:**\n```\n{message_content[:1000]}\n```" # Giới hạn message
+                f"**Thông điệp:**\n```\n{message_content[:1000]}\n```"
             ]
-            
             if record.exc_info:
                 tb = "".join(traceback.format_exception(*record.exc_info))
                 if len(tb) > 1000: tb = tb[:990] + "\n... (traceback bị cắt bớt)"
                 description_parts.append(f"**Traceback:**\n```python\n{tb}\n```")
-
+            embed_color = 0xff0000 if record.levelno == logging.ERROR else 0xcc0000
             embed = {
                 "title": f"🚨 Lỗi Bot: {record.levelname}",
                 "description": "\n".join(description_parts),
@@ -76,43 +65,27 @@ class DiscordWebhookHandler(logging.Handler):
                 "timestamp": log_time.isoformat()
             }
             payload = {"embeds": [embed]}
-
-        elif record.levelno == logging.INFO and record.name.startswith('cogs.'): # Xử lý thao tác người dùng
-            # Định dạng text đơn giản cho thao tác người dùng
-            formatted_time = log_time.strftime("%d/%m/%y (%H:%M:%S)") # Thêm giây cho rõ ràng
-            
-            # record.getMessage() đã chứa thông tin user, hành động từ logger.info() trong Cogs
+        elif record.levelno == logging.INFO and record.name.startswith('cogs.'):
+            formatted_time = log_time.strftime("%d/%m/%y (%H:%M:%S)")
             action_message = record.getMessage()
-            
-            # Kết hợp thành định dạng bạn muốn
-            # Ví dụ: "[dd/mm/yy (HH:MM:SS)] User MinhBeo8 (12345) đã câu được cá 🐟..."
             final_log_string = f"[{formatted_time}] {action_message}"
-            
-            if len(final_log_string) > 1990: # Giới hạn ký tự Discord
+            if len(final_log_string) > 1990:
                 final_log_string = final_log_string[:1987] + "..."
             payload = {"content": final_log_string}
         
-        # Nếu payload đã được tạo (tức là log này cần gửi đi)
         if payload:
             try:
                 if self.loop and self.loop.is_running():
                     asyncio.ensure_future(self._send_payload_async(payload), loop=self.loop)
                 else:
-                    # Fallback nếu không có loop (ít khi xảy ra khi bot đang chạy)
-                    # Cách này có thể không ổn định, chỉ là nỗ lực cuối cùng
                     asyncio.run(self._send_payload_async(payload)) 
             except Exception as e:
-                # Lỗi này sẽ được bắt bởi handleError của logging.Handler
-                # và sẽ được ghi vào các handler khác (ví dụ file log chính)
-                self.handleError(record) # Gọi handler lỗi mặc định của logging
-                # In thêm ra console để dễ thấy ngay
+                self.handleError(record) 
                 print(f"[CRITICAL][DiscordWebhookHandler] Lỗi nghiêm trọng khi gửi log qua webhook: {e}")
                 traceback.print_exc()
 
-
-# --- Hàm setup_logging (CẬP NHẬT) ---
+# --- Hàm setup_logging (CẬP NHẬT với dòng print debug) ---
 def setup_logging():
-    # ... (phần tạo thư mục, tên file, formatter giữ nguyên như trước) ...
     if not os.path.exists(LOG_DIRECTORY):
         try:
             os.makedirs(LOG_DIRECTORY)
@@ -121,6 +94,12 @@ def setup_logging():
             return 
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    
+    # === DÒNG PRINT DEBUG CHO WEBHOOK URL ===
+    webhook_url_for_debug = os.getenv("DISCORD_WEBHOOK_URL")
+    print(f"\n[DEBUG FROM LOGGER.PY] Webhook URL from env at setup_logging start: '{webhook_url_for_debug}'\n") 
+    # =======================================
+
     general_log_filename = os.path.join(LOG_DIRECTORY, GENERAL_LOG_FILENAME_FORMAT.format(timestamp=timestamp))
     action_log_filename = os.path.join(LOG_DIRECTORY, ACTION_LOG_FILENAME_FORMAT.format(timestamp=timestamp))
 
@@ -137,7 +116,7 @@ def setup_logging():
     if root_logger.hasHandlers():
         root_logger.handlers.clear()
 
-    # General File Handler (Giữ nguyên)
+    # General File Handler
     try:
         general_file_handler = logging.handlers.RotatingFileHandler(
             filename=general_log_filename, encoding='utf-8',
@@ -149,8 +128,7 @@ def setup_logging():
     except Exception as e:
         print(f"Không thể thiết lập general_file_handler: {e}")
 
-
-    # Action Log File Handler (Giữ nguyên - để vẫn có file log action riêng)
+    # Action Log File Handler
     try:
         action_file_handler = logging.handlers.RotatingFileHandler(
             filename=action_log_filename, encoding='utf-8',
@@ -163,7 +141,7 @@ def setup_logging():
     except Exception as e:
         print(f"Không thể thiết lập action_file_handler: {e}")
 
-    # Console Handler (Giữ nguyên)
+    # Console Handler
     try:
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(console_formatter)
@@ -172,22 +150,19 @@ def setup_logging():
     except Exception as e:
         print(f"Không thể thiết lập console_handler: {e}")
 
-    # --- CẬP NHẬT WEBHOOK HANDLER ---
-    webhook_url_from_env = os.getenv("DISCORD_WEBHOOK_URL")
-    if webhook_url_from_env:
+    # Webhook Handler (sử dụng webhook_url_for_debug đã lấy ở trên)
+    if webhook_url_for_debug: # Kiểm tra lại biến đã lấy
         try:
-            webhook_handler = DiscordWebhookHandler(webhook_url_from_env)
-            # Webhook handler sẽ nhận INFO trở lên, 
-            # bên trong emit() sẽ quyết định gửi gì dựa trên level và name
+            webhook_handler = DiscordWebhookHandler(webhook_url_for_debug)
             webhook_handler.setLevel(logging.INFO) 
-            # Không cần set formatter cho webhook_handler vì emit tự định dạng
             root_logger.addHandler(webhook_handler)
             logging.getLogger("BotSetup").info("Discord Webhook logging handler đã được thiết lập cho INFO (từ cogs) và ERROR/CRITICAL.")
         except Exception as e:
             logging.getLogger("BotSetup").error(f"Không thể thiết lập DiscordWebhookHandler: {e}", exc_info=True)
     else:
-        logging.getLogger("BotSetup").warning("DISCORD_WEBHOOK_URL không được tìm thấy trong .env. Logging qua Webhook bị vô hiệu hóa.")
-    # ----------------------------
+        logging.getLogger("BotSetup").warning("DISCORD_WEBHOOK_URL không được tìm thấy trong .env (kiểm tra từ logger.py). Logging qua Webhook bị vô hiệu hóa.")
+    
+    logging.getLogger("BotSetup").info("Hệ thống Logging đã được thiết lập (hoặc cố gắng thiết lập).")
+    logging.getLogger("BotSetup").debug(f"General logs sẽ được ghi vào: {general_log_filename}")
+    logging.getLogger("BotSetup").debug(f"Player action logs (INFO từ cogs) sẽ được ghi vào: {action_log_filename}")
 
-    logging.getLogger("BotSetup").info("Hệ thống Logging đã được thiết lập đầy đủ.")
-    # ... (các dòng debug về tên file log giữ nguyên) ...
