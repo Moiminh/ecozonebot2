@@ -1,29 +1,35 @@
 # bot/cogs/shop/shop_cmd.py
 import nextcord
 from nextcord.ext import commands
+import logging # <<< THÊM IMPORT NÀY
 
 # Import các thành phần cần thiết từ package 'core'
-# from core.database import ... # Lệnh shop thuần túy hiển thị, không cần database trực tiếp
 from core.utils import try_send
 from core.config import CURRENCY_SYMBOL, SHOP_ITEMS, COMMAND_PREFIX
-from core.icons import ICON_SHOP # Đảm bảo icon này có trong core/icons.py
+from core.icons import ICON_SHOP, ICON_INFO # Đảm bảo các icon này có trong core/icons.py
 
-class ShopDisplayCommandCog(commands.Cog, name="Shop Display Command"): # Đổi tên class Cog cho rõ ràng
+logger = logging.getLogger(__name__) # <<< LẤY LOGGER CHO MODULE NÀY
+
+class ShopDisplayCommandCog(commands.Cog, name="Shop Display Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        logger.debug(f"ShopDisplayCommandCog initialized.")
 
     @commands.command(name='shop', aliases=['store'])
-    async def shop_display(self, ctx: commands.Context): # Đổi tên hàm lệnh để tránh trùng tên với alias/command name nếu cần
+    async def shop_display(self, ctx: commands.Context):
         """Hiển thị các vật phẩm đang được bán trong cửa hàng.
         Sử dụng lệnh `buy <tên_vật_phẩm> [số_lượng]` để mua.
         Sử dụng lệnh `sell <tên_vật_phẩm> [số_lượng]` để bán.
         """
+        logger.debug(f"Lệnh 'shop' được gọi bởi {ctx.author.name} (ID: {ctx.author.id}) tại guild {ctx.guild.id}.")
+        
         embed = nextcord.Embed(
             title=f"{ICON_SHOP} Cửa Hàng Vật Phẩm", 
             description=f"Mua: `{COMMAND_PREFIX}buy <tên_vật_phẩm> [số_lượng]` (mặc định số lượng là 1)\nBán: `{COMMAND_PREFIX}sell <tên_vật_phẩm> [số_lượng]` (mặc định số lượng là 1)",
             color=nextcord.Color.orange()
         )
         if not SHOP_ITEMS:
+            logger.info("Cửa hàng hiện đang trống (SHOP_ITEMS is empty).") # Có thể dùng INFO nếu đây là tình trạng đáng chú ý
             embed.description = f"{ICON_SHOP} Cửa hàng hiện đang trống hoặc đang được cập nhật."
         else:
             for item_id, details in SHOP_ITEMS.items():
@@ -42,6 +48,7 @@ class ShopDisplayCommandCog(commands.Cog, name="Shop Display Command"): # Đổi
                     inline=False
                 )
         await try_send(ctx, embed=embed)
+        logger.debug(f"Lệnh 'shop' cho {ctx.author.name} đã hiển thị cửa hàng.")
 
 def setup(bot: commands.Bot):
     bot.add_cog(ShopDisplayCommandCog(bot))
