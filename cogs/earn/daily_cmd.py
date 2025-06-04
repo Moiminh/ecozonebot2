@@ -4,20 +4,25 @@ from nextcord.ext import commands
 import random
 from datetime import datetime
 
+# Import các thành phần cần thiết từ package 'core'
 from core.database import get_user_data, save_data
 from core.utils import try_send, get_time_left_str
 from core.config import CURRENCY_SYMBOL, DAILY_COOLDOWN
-from core.icons import ICON_LOADING, ICON_GIFT, ICON_MONEY_BAG # Đảm bảo các icon này có trong core/icons.py
+# --- DÒNG IMPORT ICON ĐẦY ĐỦ VÀ CHÍNH XÁC ---
+from core.icons import ICON_LOADING, ICON_GIFT, ICON_MONEY_BAG, ICON_INFO 
+# (Đảm bảo tất cả các icon này đã được bạn định nghĩa trong bot/core/icons.py)
+# --------------------------------------------
 
 class DailyCommandCog(commands.Cog, name="Daily Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        print(f"{ICON_INFO} [COG LOADED] DailyCommandCog initialized.") # Thêm dòng này để xác nhận Cog init
+        # Dòng print này sử dụng ICON_INFO, giờ sẽ không lỗi nữa nếu đã import đúng
+        print(f"{ICON_INFO} [COG LOADED] DailyCommandCog initialized.") 
 
     @commands.command(name='daily', aliases=['d'])
     async def daily(self, ctx: commands.Context):
-        print(f"--- Lệnh DAILY được gọi bởi {ctx.author.name} ---") # Dòng debug
         """Nhận phần thưởng hàng ngày của bạn."""
+        # print(f"--- Lệnh DAILY được gọi bởi {ctx.author.name} ---") # Bạn có thể giữ dòng debug này nếu muốn
         data = get_user_data(ctx.guild.id, ctx.author.id)
         user_data = data[str(ctx.guild.id)][str(ctx.author.id)]
         
