@@ -4,7 +4,7 @@ from nextcord.ext import commands
 
 from core.database import load_data
 from core.utils import try_send
-from core.config import CURRENCY_SYMBOL # COMMAND_PREFIX không cần thiết ở đây
+from core.config import CURRENCY_SYMBOL
 from core.icons import ICON_CROWN, ICON_INFO # Đảm bảo các icon này có trong core/icons.py
 
 class RichestCommandCog(commands.Cog, name="Richest Command"):
