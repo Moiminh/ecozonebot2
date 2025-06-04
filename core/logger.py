@@ -1,70 +1,108 @@
 # bot/core/logger.py
 import logging
-import logging.handlers
+import logging.handlers # Cần thiết cho RotatingFileHandler
 import os
 from datetime import datetime
 
-LOG_DIRECTORY = "logs"
-GENERAL_LOG_FILENAME_FORMAT = "bot_general_{timestamp}.log" # Đổi tên để phân biệt
-ACTION_LOG_FILENAME_FORMAT = "player_actions_{timestamp}.log" # File log cho hành động người chơi
+LOG_DIRECTORY = "logs" # Thư mục để lưu tất cả các file log
+GENERAL_LOG_FILENAME_FORMAT = "bot_general_{timestamp}.log" 
+ACTION_LOG_FILENAME_FORMAT = "player_actions_{timestamp}.log"
 
 # --- Filter tùy chỉnh cho Action Log ---
 class CogInfoFilter(logging.Filter):
+    """
+    Filter này chỉ cho phép các log record có cấp độ INFO 
+    và được tạo bởi các logger có tên bắt đầu bằng 'cogs.' đi qua.
+    """
+    def __init__(self, prefix='cogs.', level=logging.INFO): # Thêm level vào init
+        super().__init__()
+        self.prefix = prefix
+        self.level = level
+
     def filter(self, record):
-        # Chỉ cho phép log từ các logger có tên bắt đầu bằng 'cogs.' 
-        # và có cấp độ là INFO
-        return record.name.startswith('cogs.') and record.levelno == logging.INFO
+        return record.name.startswith(self.prefix) and record.levelno == self.level
 
 def setup_logging():
-    if not os.path.exists(LOG_DIRECTORY):
-        os.makedirs(LOG_DIRECTORY)
+    """Thiết lập hệ thống logging cho toàn bộ bot."""
 
+    # Tạo thư mục logs nếu chưa tồn tại
+    if not os.path.exists(LOG_DIRECTORY):
+        try:
+            os.makedirs(LOG_DIRECTORY)
+        except OSError as e:
+            print(f"Không thể tạo thư mục logs: {e}")
+            # Không thể tiếp tục nếu không tạo được thư mục log
+            return 
+
+    # Tạo tên file log động với timestamp
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     general_log_filename = os.path.join(LOG_DIRECTORY, GENERAL_LOG_FILENAME_FORMAT.format(timestamp=timestamp))
     action_log_filename = os.path.join(LOG_DIRECTORY, ACTION_LOG_FILENAME_FORMAT.format(timestamp=timestamp))
 
-    # Định dạng chung cho file log (bao gồm tên logger để biết từ module nào)
+    # Định dạng chung cho các thông điệp log trong file (chi tiết)
     file_log_formatter = logging.Formatter(
-        '%(asctime)s [%(levelname)-8s] [%(name)-30s] %(message)s', # Tăng độ rộng cho name
+        '%(asctime)s [%(levelname)-8s] [%(name)-35s] %(message)s', # Tăng độ rộng cho name để dễ đọc hơn
         datefmt='%Y-%m-%d %H:%M:%S'
     )
+    # Định dạng cho console (có thể đơn giản hơn)
     console_formatter = logging.Formatter(
-        '[%(levelname)-8s] [%(name)-20s] %(message)s' # Giữ console formatter cũ hoặc tùy chỉnh
+        '[%(levelname)-8s] [%(name)-25s] %(message)s' # Giảm độ rộng name cho console
     )
 
-    logger = logging.getLogger() # Lấy root logger
-    logger.setLevel(logging.DEBUG) # Root logger bắt tất cả từ DEBUG trở lên
+    # Lấy root logger để cấu hình chung cho tất cả các logger con
+    # (Trừ khi logger con được cấu hình riêng hoặc tắt propagate)
+    root_logger = logging.getLogger() 
+    root_logger.setLevel(logging.DEBUG) # Root logger sẽ bắt tất cả các thông điệp từ DEBUG trở lên
+
+    # Xóa các handler mặc định có thể đã được thêm vào root logger (nếu có)
+    # để tránh log bị lặp lại hoặc ghi bởi handler không mong muốn.
+    if root_logger.hasHandlers():
+        root_logger.handlers.clear()
 
     # --- General File Handler: Ghi tất cả log (từ DEBUG trở lên) vào file chung ---
-    general_file_handler = logging.handlers.RotatingFileHandler(
-        filename=general_log_filename,
-        encoding='utf-8',
-        maxBytes=5*1024*1024,
-        backupCount=5
-    )
-    general_file_handler.setFormatter(file_log_formatter)
-    general_file_handler.setLevel(logging.DEBUG) # File này ghi tất cả debug
-    logger.addHandler(general_file_handler)
+    try:
+        general_file_handler = logging.handlers.RotatingFileHandler(
+            filename=general_log_filename,
+            encoding='utf-8',
+            maxBytes=5*1024*1024,  # Ví dụ: 5MB mỗi file
+            backupCount=5  # Giữ lại 5 file backup
+        )
+        general_file_handler.setFormatter(file_log_formatter)
+        general_file_handler.setLevel(logging.DEBUG) # File này ghi tất cả từ DEBUG
+        root_logger.addHandler(general_file_handler)
+    except Exception as e:
+        print(f"Không thể thiết lập general_file_handler: {e}")
 
-    # --- Action Log File Handler: Ghi INFO từ cogs vào file hành động người chơi ---
-    action_file_handler = logging.handlers.RotatingFileHandler(
-        filename=action_log_filename,
-        encoding='utf-8',
-        maxBytes=2*1024*1024, # Có thể đặt kích thước nhỏ hơn cho file action log
-        backupCount=3
-    )
-    action_file_handler.setFormatter(file_log_formatter) # Dùng chung formatter chi tiết
-    action_file_handler.setLevel(logging.INFO) # Chỉ quan tâm đến INFO level cho action log
-    action_file_handler.addFilter(CogInfoFilter()) # Thêm filter tùy chỉnh
-    logger.addHandler(action_file_handler) # Thêm handler này vào root logger
+
+    # --- Action Log File Handler: Ghi INFO từ các module trong 'cogs.' vào file hành động ---
+    try:
+        action_file_handler = logging.handlers.RotatingFileHandler(
+            filename=action_log_filename,
+            encoding='utf-8',
+            maxBytes=2*1024*1024, # File action log có thể nhỏ hơn
+            backupCount=3
+        )
+        action_file_handler.setFormatter(file_log_formatter) # Dùng chung formatter chi tiết
+        action_file_handler.setLevel(logging.INFO) # Chỉ quan tâm đến INFO cho action log
+        action_file_handler.addFilter(CogInfoFilter(prefix='cogs.', level=logging.INFO)) # Áp dụng filter
+        root_logger.addHandler(action_file_handler)
+    except Exception as e:
+        print(f"Không thể thiết lập action_file_handler: {e}")
+
 
     # --- Console (Stream) Handler: Hiển thị log (từ INFO trở lên) ra terminal ---
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(console_formatter)
-    console_handler.setLevel(logging.INFO) 
-    logger.addHandler(console_handler)
+    try:
+        console_handler = logging.StreamHandler() # Mặc định là sys.stderr, có thể đổi sang sys.stdout
+        console_handler.setFormatter(console_formatter)
+        console_handler.setLevel(logging.INFO) # Chỉ hiển thị INFO và các cấp độ cao hơn ra console
+        root_logger.addHandler(console_handler)
+    except Exception as e:
+        print(f"Không thể thiết lập console_handler: {e}")
 
-    initial_logger = logging.getLogger("BotSetup") # Logger riêng cho thông báo setup
-    initial_logger.info("Hệ thống Logging đã được thiết lập.")
-    initial_logger.debug(f"General logs: {general_log_filename}")
-    initial_logger.debug(f"Player action logs: {action_log_filename}")
+
+    # Logger riêng cho thông báo setup để tránh bị filter nếu root logger thay đổi
+    # Hoặc đơn giản là dùng logging.info trực tiếp vì root logger đã được cấu hình
+    logging.getLogger("BotSetup").info("Hệ thống Logging đã được thiết lập.")
+    logging.getLogger("BotSetup").debug(f"General logs sẽ được ghi vào: {general_log_filename}")
+    logging.getLogger("BotSetup").debug(f"Player action logs (INFO từ cogs) sẽ được ghi vào: {action_log_filename}")
+
