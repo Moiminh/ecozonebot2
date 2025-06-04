@@ -57,8 +57,16 @@ BARE_COMMAND_MAP = {
     "fish": "fish",
     "shop": "shop", "store": "shop",
     "bank": "bank",
-    "buy": "buy",         # Đã thêm ở các bước trước
-    "sell": "sell",       # Đã thêm ở các bước trước
-    "give": "transfer",   # Đã thêm ở các bước trước
-    "pay": "transfer"     # Đã thêm ở các bước trước
+    "buy": "buy",         
+    "sell": "sell",       
+    "give": "transfer",   
+    "pay": "transfer", 
+  "lb": "leaderboard",
+  "top": "leaderboard",
+  "richest": "richest",
+  "rich": "richest"
 }
+
+  # ... (phần còn lại của file config.py nếu có) ...
+
+
