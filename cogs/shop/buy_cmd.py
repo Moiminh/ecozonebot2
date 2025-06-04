@@ -23,10 +23,59 @@ class BuyCommandCog(commands.Cog, name="Buy Command"):
             await try_send(ctx, content=f"{ICON_ERROR} Số lượng mua phải lớn hơn 0.")
             return
 
-        # Xử lý trường hợp người dùng có thể nhập sai thứ tự (ví dụ `buy 2 laptop`)
-        # khi họ đang dùng lệnh prefix và quantity lại là giá trị mặc định.
-        # Nếu lệnh tắt, on_message đã chuẩn hóa thành `!buy <arg1> <arg2...>`
-        # nên `item_name` sẽ chứa toàn bộ phần sau `!buy`.
         
-        # Chúng ta sẽ thử tách item_name và quantity nếu người dùng nhập theo kiểu "tên_item số_lượng"
-        # hoặc "số_lượng tên_item" (chỉ khi quantity gốc là 1).
+        
+        parts = item_name.split()
+        processed_item_name = item_name # Giả định ban đầu
+        parsed_quantity = quantity      # Giữ quantity được truyền vào hoặc mặc định
+
+
+        if quantity == 1 and len(parts) > 1: # Nếu quantity là mặc định và item_name có nhiều hơn 1 từ
+            try:
+                # Thử xem từ đầu tiên của item_name có phải là số không
+                first_word_as_int = int(parts[0])
+                # Nếu thành công, có thể người dùng đã nhập `!buy <số> <tên còn lại>`
+                parsed_quantity = first_word_as_int
+                processed_item_name = " ".join(parts[1:])
+            except ValueError:
+                # Từ đầu tiên không phải là số, vậy toàn bộ là tên vật phẩm
+                processed_item_name = item_name 
+        
+        item_id_to_buy = processed_item_name.lower().strip().replace(" ", "_")
+
+        if not item_id_to_buy:
+             await try_send(ctx, content=f"{ICON_WARNING} Vui lòng nhập tên vật phẩm bạn muốn mua. Cú pháp: `{COMMAND_PREFIX}buy <tên_vật_phẩm> [số_lượng]`")
+             return
+
+        if parsed_quantity <= 0: # Kiểm tra lại parsed_quantity sau khi có thể đã thay đổi
+            await try_send(ctx, content=f"{ICON_ERROR} Số lượng mua phải lớn hơn 0.")
+            return
+
+        if item_id_to_buy not in SHOP_ITEMS:
+            await try_send(ctx, content=f"{ICON_ERROR} Vật phẩm `{processed_item_name}` không tồn tại trong cửa hàng.")
+            return
+        
+        item_details = SHOP_ITEMS[item_id_to_buy]
+        price_per_item = item_details["price"]
+        total_price = price_per_item * parsed_quantity
+        
+        data = get_user_data(ctx.guild.id, ctx.author.id)
+        user_data = data[str(ctx.guild.id)][str(ctx.author.id)]
+        item_name_display = item_id_to_buy.replace("_", " ").capitalize()
+
+        if user_data.get("balance", 0) < total_price:
+            await try_send(ctx, content=f"{ICON_ERROR} Bạn không đủ tiền! Bạn cần **{total_price:,}** {CURRENCY_SYMBOL} để mua {parsed_quantity} {item_name_display}. ({ICON_MONEY_BAG} Ví bạn có: {user_data.get('balance', 0):,} {CURRENCY_SYMBOL})")
+            return
+            
+        user_data["balance"] -= total_price
+        if "inventory" not in user_data or not isinstance(user_data["inventory"], list):
+            user_data["inventory"] = []
+        
+        for _ in range(parsed_quantity):
+            user_data["inventory"].append(item_id_to_buy)
+        
+        save_data(data)
+        await try_send(ctx, content=f"{ICON_SUCCESS} Bạn đã mua thành công **{parsed_quantity} {item_name_display}** với tổng giá **{total_price:,}** {CURRENCY_SYMBOL}! Chúng đã được thêm vào túi đồ (`{COMMAND_PREFIX}inv`).")
+
+def setup(bot: commands.Bot):
+    bot.add_cog(BuyCommandCog(bot))
