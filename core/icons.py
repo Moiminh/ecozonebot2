@@ -38,7 +38,8 @@ ICON_GOLD_WATCH = "⌚"
 ICON_FISHING_ROD = "🎣" 
 ICON_PING = "📶" 
 ICON_INFO = "ℹ️" 
-ICON_UNMUTE = "🗣️" 
+ICON_MUTE = "🔇"  # <<< THÊM DÒNG NÀY
+ICON_UNMUTE = "🔊" 
 
 
 # (Các icon khác của bạn...)
