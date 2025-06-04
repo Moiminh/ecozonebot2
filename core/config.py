@@ -23,7 +23,7 @@ DICE_COOLDOWN = 5
 ROB_SUCCESS_RATE = 0.50
 ROB_FINE_RATE = 0.25
 CRIME_SUCCESS_RATE = 0.60
-SLOTS_EMOJIS = ["🍒", "🍊", "🍋", "🔔", "⭐", "💎"]
+SLOTS_EMOJIS = ["🍒", "🍊", "🍋", "🔔", "⭐", "💎",]
 FISH_CATCHES = {
     "🐠": 50, "🐟": 75, "🐡": 100, "🦑": 150, "🦐": 30, "🦀": 60,
     "👢": 5, "🔩": 1, "🪵": 10
@@ -55,6 +55,10 @@ BARE_COMMAND_MAP = {
     "fish": "fish",
     "shop": "shop", "store": "shop",
     "bank": "bank",
-    "buy": "buy",       # Đã thêm vào
-    "sell": "sell"      # Đã thêm vào
+    "buy": "buy",
+    "sell": "sell", 
+    "give": "transfer",
+    "pay": "transfer" 
 }
+
+
