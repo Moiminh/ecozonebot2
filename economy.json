@@ -1,0 +1,45 @@
+{
+    "1373168665675173970": {
+        "config": {
+            "bare_command_active_channels": [
+                1378996497961713755
+            ],
+            "muted_channels": []
+        },
+        "1370417047070048276": {
+            "balance": 1061449,
+            "bank_balance": 0,
+            "inventory": [
+                "laptop",
+                "laptop",
+                "laptop",
+                "laptop",
+                "laptop",
+                "laptop"
+            ],
+            "last_work": 1748969600.040055,
+            "last_daily": 1748974120.672394,
+            "last_beg": 1749000638.684078,
+            "last_rob": 1749000943.327219,
+            "last_crime": 0,
+            "last_fish": 0,
+            "last_slots": 1749001280.437117,
+            "last_cf": 1749001002.624278,
+            "last_dice": 1748974601.199166
+        },
+        "1354746718733733910": {
+            "balance": 11098,
+            "bank_balance": 0,
+            "inventory": [],
+            "last_work": 0,
+            "last_daily": 0,
+            "last_beg": 0,
+            "last_rob": 0,
+            "last_crime": 0,
+            "last_fish": 0,
+            "last_slots": 0,
+            "last_cf": 0,
+            "last_dice": 0
+        }
+    }
+}
