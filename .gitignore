@@ -1,0 +1,6 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+# Thêm các file/thư mục khác bạn không muốn đưa lên Git ở đây
