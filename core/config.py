@@ -64,7 +64,8 @@ BARE_COMMAND_MAP = {
   "lb": "leaderboard",
   "top": "leaderboard",
   "richest": "richest",
-  "rich": "richest"
+  "rich": "richest", 
+   "tf" : "tranfsfer", 
 }
 
   # ... (phần còn lại của file config.py nếu có) ...
