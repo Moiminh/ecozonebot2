@@ -1,24 +1,26 @@
 # bot/core/bot.py
 import nextcord
 from nextcord.ext import commands
-import os
+import os # Thư viện os để làm việc với hệ thống file
 
+# Import các thành phần cần thiết từ package 'core'
 from .config import COMMAND_PREFIX, BARE_COMMAND_MAP
 from .database import get_guild_config
 from .utils import try_send
-# --- Thêm import này ---
-from .icons import ICON_ERROR, ICON_WARNING, ICON_INFO, ICON_LOADING, ICON_SUCCESS
-# -----------------------
+from .icons import ICON_ERROR, ICON_WARNING, ICON_INFO, ICON_LOADING, ICON_SUCCESS # Đã thêm ở bước trước
 
+# --- Khởi tạo Bot ---
 intents = nextcord.Intents.default()
 intents.message_content = True
 intents.members = True
 bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
 
+# --- Các Sự Kiện (Events) của Bot ---
+
 @bot.event
 async def on_ready():
     print(f'--------------------------------------------------')
-    print(f'{ICON_SUCCESS} Bot đã đăng nhập với tên: {bot.user.name} (ID: {bot.user.id})') # Thêm icon
+    print(f'{ICON_SUCCESS} Bot đã đăng nhập với tên: {bot.user.name} (ID: {bot.user.id})')
     print(f'{ICON_INFO} Prefix lệnh: {COMMAND_PREFIX}')
     print(f'Nextcord Version: {nextcord.__version__}')
     print(f'Bot đã sẵn sàng và đang chờ lệnh!')
@@ -51,7 +53,6 @@ async def on_message(message: nextcord.Message):
             message.content = f"{COMMAND_PREFIX}{actual_command_name} {args_for_bare_command}".strip()
         else:
             if len(content.split()) <= 3:
-                 # Sử dụng ICON_ERROR từ icons.py
                  await try_send(message.channel, content=f"{ICON_ERROR} Lệnh tắt `{command_candidate}` không hợp lệ hoặc không được hỗ trợ. Hãy dùng `/help` để xem các lệnh.")
             process_as_command = False
     
@@ -84,24 +85,47 @@ async def on_command_error(ctx: commands.Context, error):
         print(f"Thông điệp lỗi: {error}")
         await try_send(ctx, content=f"{ICON_ERROR} Ối! Đã có lỗi không mong muốn xảy ra khi thực hiện lệnh. Vui lòng thử lại sau. 😵‍💫")
 
-# (Hàm load_all_cogs() giữ nguyên)
+# --- Hàm Tải Cogs (PHIÊN BẢN CẬP NHẬT ĐỂ HỖ TRỢ THƯ MỤC CON) ---
 def load_all_cogs():
     print(f'--------------------------------------------------')
     print(f'Đang tải các Cogs...')
     loaded_cogs_count = 0
-    current_script_path = os.path.dirname(os.path.abspath(__file__)) 
-    cogs_directory_path = os.path.join(os.path.dirname(current_script_path), 'cogs')
+    
+    cogs_main_directory = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'cogs')
 
-    for filename in os.listdir(cogs_directory_path):
-        if filename.endswith('.py') and not filename.startswith('_'): 
-            cog_name = filename[:-3]
-            try:
-                bot.load_extension(f'cogs.{cog_name}')
-                print(f'  [+] Đã tải thành công Cog: {cog_name}')
-                loaded_cogs_count += 1
-            except Exception as e:
-                print(f'  [!] LỖI khi tải Cog {cog_name}:')
-                print(f'      Loại lỗi: {type(e).__name__}')
-                print(f'      Thông điệp: {e}')
+    for root, dirs, files in os.walk(cogs_main_directory):
+        
+        dirs[:] = [d for d in dirs if d != '__pycache__']
+
+        for filename in files:
+            if filename.endswith('.py') and not filename.startswith('_'): # Chỉ lấy file .py, bỏ qua các file như __init__.py nếu bạn không muốn load chúng như cog
+                module_name_only = filename[:-3] # Tên file không có .py (ví dụ: work_cmd)         
+                
+                relative_path_to_cog_folder = os.path.relpath(root, cogs_main_directory)
+                
+                extension_path = ""
+                if relative_path_to_cog_folder == ".": # Nếu cog nằm trực tiếp trong thư mục 'cogs'
+                    extension_path = f"cogs.{module_name_only}"
+                else: # Nếu cog nằm trong thư mục con của 'cogs' (ví dụ: 'cogs/earn/')
+                    # Thay thế dấu phân cách thư mục của HĐH (ví dụ \ hoặc /) bằng dấu chấm .
+                    python_module_subpath = relative_path_to_cog_folder.replace(os.sep, '.')
+                    extension_path = f"cogs.{python_module_subpath}.{module_name_only}"
+                
+                try:
+                    bot.load_extension(extension_path)
+                    print(f'  [+] Đã tải thành công Cog: {extension_path}')
+                    loaded_cogs_count += 1
+                except commands.ExtensionAlreadyLoaded:
+                    print(f'  [~] Cog đã được tải từ trước: {extension_path}')
+                except commands.NoEntryPointError: # Lỗi này quan trọng
+                    print(f'  [!] LỖI NoEntryPointError khi tải {extension_path}: File cog thiếu hàm setup(bot).')
+                except Exception as e:
+                    print(f'  [!] LỖI khi tải Cog {extension_path}:')
+                    print(f'      Loại lỗi: {type(e).__name__}')
+                    print(f'      Thông điệp: {e}')
+                    # import traceback # Để debug chi tiết hơn nếu cần
+                    # traceback.print_exc()
+                    
     print(f'--- Hoàn tất! Đã tải {loaded_cogs_count} Cogs. ---')
     print(f'--------------------------------------------------')
+
