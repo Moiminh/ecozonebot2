@@ -4,7 +4,7 @@ from nextcord.ext import commands
 
 from core.database import load_data
 from core.utils import try_send
-from core.config import CURRENCY_SYMBOL # COMMAND_PREFIX không cần thiết ở đây
+from core.config import CURRENCY_SYMBOL
 from core.icons import ICON_LEADERBOARD, ICON_INFO # Đảm bảo các icon này có trong core/icons.py
 
 class LeaderboardCommandCog(commands.Cog, name="Leaderboard Command"):
@@ -42,7 +42,7 @@ class LeaderboardCommandCog(commands.Cog, name="Leaderboard Command"):
         total_pages = (len(sorted_users) + items_per_page - 1) // items_per_page 
 
         if not sorted_users and page == 1: 
-            await try_send(ctx, content=f"{ICON_INFO} Không có ai để xếp hạng!") # Dùng ICON_INFO cho thông báo trung tính
+            await try_send(ctx, content=f"{ICON_INFO} Không có ai để xếp hạng!")
             return
         if (page < 1 or page > total_pages) and total_pages > 0 :
             await try_send(ctx, content=f"{ICON_INFO} Số trang không hợp lệ. Server này chỉ có {total_pages} trang bảng xếp hạng.")
@@ -52,7 +52,7 @@ class LeaderboardCommandCog(commands.Cog, name="Leaderboard Command"):
              return
 
         embed = nextcord.Embed(
-            title=f"{ICON_LEADERBOARD} Bảng Xếp Hạng Giàu Nhất - {ctx.guild.name}", # Thêm icon
+            title=f"{ICON_LEADERBOARD} Bảng Xếp Hạng Giàu Nhất - {ctx.guild.name}", 
             color=nextcord.Color.gold()
         )
         description_parts = []
@@ -66,11 +66,13 @@ class LeaderboardCommandCog(commands.Cog, name="Leaderboard Command"):
                 rank += 1
             except (nextcord.NotFound, ValueError, KeyError) as e:
                 print(f"Leaderboard: Không thể fetch/xử lý user ID {user_id_str}. Lỗi: {e}")
+                # Có thể thêm một thông báo lỗi nhỏ ở đây nếu muốn, hoặc bỏ qua user lỗi
+                description_parts.append(f"{rank}. *Không thể tải thông tin user ID: {user_id_str}*")
+                rank +=1
                 continue 
         
-        if not description_parts: # Kiểm tra chung nếu không có gì để hiển thị
-             # Các điều kiện cụ thể hơn đã được xử lý ở trên, đây là fallback
-             await try_send(ctx, content=f"{ICON_INFO} Không có dữ liệu để hiển thị cho trang này.")
+        if not description_parts:
+             await try_send(ctx, content=f"{ICON_INFO} Không có dữ liệu để hiển thị cho trang này (có thể do lỗi fetch tất cả user).")
              return
 
         embed.description = "\n".join(description_parts)
