@@ -61,8 +61,6 @@ BARE_COMMAND_MAP = {
     "sell": "sell",       
     "give": "transfer",   
     "pay": "transfer", 
-  "lb": "leaderboard",
-  "top": "leaderboard",
   "richest": "richest",
   "rich": "richest", 
    "tf" : "tranfsfer", 
