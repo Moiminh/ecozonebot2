@@ -8,7 +8,7 @@ from core.utils import try_send # try_send vẫn dùng để gửi tin nhắn ba
 from core.config import CURRENCY_SYMBOL
 from core.icons import ICON_LEADERBOARD, ICON_INFO, ICON_MONEY_BAG # Đảm bảo các icon này có trong core/icons.py
 
-ITEMS_PER_PAGE = 10 # Có thể đặt ở config.py nếu muốn
+ITEMS_PER_PAGE = 1 # Có thể đặt ở config.py nếu muốn
 
 # --- Lớp View cho Leaderboard ---
 class LeaderboardView(nextcord.ui.View):
