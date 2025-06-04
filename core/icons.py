@@ -36,5 +36,6 @@ ICON_GAME = "🎮"
 ICON_LAPTOP = "💻"
 ICON_GOLD_WATCH = "⌚"
 ICON_FISHING_ROD = "🎣" 
+ICON_PING = "📶" 
 
 # (Các icon khác của bạn...)
