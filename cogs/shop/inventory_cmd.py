@@ -1,20 +1,19 @@
 # bot/cogs/shop/inventory_cmd.py
 import nextcord
 from nextcord.ext import commands
-import logging # <<< THÊM IMPORT NÀY
+import logging 
 
-# Import các thành phần cần thiết từ package 'core'
 from core.database import get_user_data
 from core.utils import try_send
 from core.config import CURRENCY_SYMBOL, SHOP_ITEMS 
-from core.icons import ICON_INVENTORY, ICON_ERROR, ICON_INFO # Đảm bảo có ICON_INFO
+from core.icons import ICON_INVENTORY, ICON_ERROR, ICON_INFO
 
-logger = logging.getLogger(__name__) # <<< LẤY LOGGER CHO MODULE NÀY
+logger = logging.getLogger(__name__)
 
 class InventoryCommandCog(commands.Cog, name="Inventory Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.debug(f"InventoryCommandCog initialized.")
+        logger.debug(f"InventoryCommandCog initialized.") # Giữ debug cho init Cog
 
     @commands.command(name='inventory', aliases=['inv', 'items', 'i'])
     async def inventory(self, ctx: commands.Context, user: nextcord.Member = None):
@@ -40,15 +39,16 @@ class InventoryCommandCog(commands.Cog, name="Inventory Command"):
 
         embed = nextcord.Embed(title=f"{ICON_INVENTORY} Túi Đồ của {target_user.display_name}", color=nextcord.Color.green())
 
+        item_summary_for_log = "trống" # Chuẩn bị tóm tắt cho log
         if not inv_list:
             embed.description = "Túi đồ trống trơn."
-            logger.debug(f"Túi đồ của {target_user.name} trống.")
         else:
             item_counts = {}
             for item_id_in_inv in inv_list:
                 item_counts[item_id_in_inv] = item_counts.get(item_id_in_inv, 0) + 1
             
             description_parts = []
+            log_summary_parts = [] # Để tạo tóm tắt cho log
             if item_counts:
                 for item_id, count in item_counts.items():
                     item_details = SHOP_ITEMS.get(item_id, {}) 
@@ -58,25 +58,31 @@ class InventoryCommandCog(commands.Cog, name="Inventory Command"):
                     sell_price = item_details.get("sell_price")
                     
                     price_info_parts = []
-                    if buy_price is not None:
-                        price_info_parts.append(f"Mua: {buy_price:,}")
-                    if sell_price is not None:
-                        price_info_parts.append(f"Bán: {sell_price:,}")
+                    if buy_price is not None: price_info_parts.append(f"Mua: {buy_price:,}")
+                    if sell_price is not None: price_info_parts.append(f"Bán: {sell_price:,}")
                     
                     price_str = ""
-                    if price_info_parts:
-                        price_str = f" ({' | '.join(price_info_parts)} {CURRENCY_SYMBOL})"
+                    if price_info_parts: price_str = f" ({' | '.join(price_info_parts)} {CURRENCY_SYMBOL})"
                     
                     description_parts.append(f"- {item_display_name} (x{count}) {price_str}")
+                    log_summary_parts.append(f"{item_display_name}(x{count})") # Tóm tắt cho log
                 
                 embed.description = "\n".join(description_parts) if description_parts else "Túi đồ trống trơn hoặc có lỗi khi đọc vật phẩm."
-                logger.debug(f"Hiển thị inventory cho {target_user.name}. Số loại vật phẩm: {len(item_counts)}. Tổng số vật phẩm: {sum(item_counts.values())}")
+                if log_summary_parts: item_summary_for_log = ", ".join(log_summary_parts)
+
             else: 
                  embed.description = f"{ICON_INFO} Túi đồ có vẻ trống hoặc có lỗi khi đọc vật phẩm."
-                 logger.debug(f"Túi đồ của {target_user.name} có item_counts rỗng dù inv_list không rỗng (trường hợp lạ). inv_list: {inv_list}")
+                 logger.debug(f"Túi đồ của {target_user.name} có item_counts rỗng dù inv_list không rỗng. inv_list: {inv_list}")
             
         await try_send(ctx, embed=embed)
-        logger.debug(f"Lệnh 'inventory' cho {target_user.name} đã hiển thị xong.")
+        
+        # --- THAY ĐỔI Ở ĐÂY: Chuyển từ debug sang info cho hành động xem inventory ---
+        if ctx.author.id == target_user.id:
+            logger.info(f"User {ctx.author.display_name} ({ctx.author.id}) đã xem túi đồ của chính mình. Nội dung: {item_summary_for_log}.")
+        else:
+            logger.info(f"User {ctx.author.display_name} ({ctx.author.id}) đã xem túi đồ của {target_user.display_name} ({target_user.id}). Nội dung: {item_summary_for_log}.")
+        # --- KẾT THÚC THAY ĐỔI ---
+        # logger.debug(f"Lệnh 'inventory' cho {target_user.name} đã hiển thị xong.") # Dòng debug cũ có thể giữ hoặc xóa
 
 def setup(bot: commands.Bot):
     bot.add_cog(InventoryCommandCog(bot))
