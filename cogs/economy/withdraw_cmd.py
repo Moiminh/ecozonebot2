@@ -25,7 +25,6 @@ class WithdrawCommandCog(commands.Cog, name="Withdraw Command"):
     async def withdraw(self, ctx: commands.Context, amount_str: str):
         """Rút tiền từ Ngân Hàng của bạn tại server này về Ví Toàn Cục."""
         author_id = ctx.author.id
-        # Lệnh này phải được dùng trong guild để xác định ngân hàng server nào
         if not ctx.guild:
             logger.warning(f"Lệnh 'withdraw' được gọi trong DM bởi {ctx.author.name}. Lệnh này cần được gọi trong server.")
             await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server để rút tiền từ ngân hàng của server đó.")
@@ -53,19 +52,22 @@ class WithdrawCommandCog(commands.Cog, name="Withdraw Command"):
         except ValueError:
             logger.warning(f"Lỗi ValueError khi user {author_id} nhập amount_str='{amount_str}' cho lệnh 'withdraw'.")
             await try_send(ctx, content=f"{ICON_WARNING} Vui lòng nhập một số tiền hợp lệ hoặc 'all'.")
-            return # Không save data vì chưa có thay đổi
+            return
             
         if amount_to_withdraw <= 0:
-            logger.warning(f"User {author_id} nhập số tiền withdraw không hợp lệ (<=0): {amount_to_withdraw}")
-            await try_send(ctx, content=f"{ICON_ERROR} Số tiền rút phải lớn hơn 0.")
-            return # Không save data
+            if not (amount_str.lower() == 'all' and amount_to_withdraw == 0):
+                logger.warning(f"User {author_id} nhập số tiền withdraw không hợp lệ (<=0): {amount_to_withdraw}")
+                await try_send(ctx, content=f"{ICON_ERROR} Số tiền rút phải lớn hơn 0.")
+                return
+            elif amount_str.lower() == 'all' and amount_to_withdraw == 0:
+                 await try_send(ctx, content=f"{ICON_INFO} Ngân hàng của bạn tại server này đang rỗng, không có gì để rút.")
+                 return
             
         if original_server_bank_balance < amount_to_withdraw:
             logger.warning(f"User {author_id} không đủ tiền trong Ngân Hàng Server ({ctx.guild.name}) để withdraw {amount_to_withdraw}. Số dư ngân hàng server: {original_server_bank_balance}")
             await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền trong Ngân Hàng tại server này. {ICON_BANK} Ngân hàng của bạn: {original_server_bank_balance:,} {CURRENCY_SYMBOL}")
-            return # Không save data
+            return
         
-        # Thực hiện giao dịch
         user_profile["global_balance"] = original_global_balance + amount_to_withdraw
         new_server_bank_balance = original_server_bank_balance - amount_to_withdraw
         set_server_bank_balance(user_profile, guild_id, new_server_bank_balance)
