@@ -40,6 +40,6 @@ ICON_PING = "📶"
 ICON_INFO = "ℹ️" 
 ICON_MUTE = "🔇"  # <<< THÊM DÒNG NÀY
 ICON_UNMUTE = "🔊" 
-
+ICON_ADMIN_PANEL = "🛡️" 
 
 # (Các icon khác của bạn...)
