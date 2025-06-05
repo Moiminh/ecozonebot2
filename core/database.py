@@ -3,7 +3,7 @@ import json
 import os
 import logging
 
-from . import config # Sử dụng config.ECONOMY_FILE, config.MODERATORS_FILE
+from . import config # Sử dụng config.ECONOMY_FILE, config.MODERATORS_FILE, config.SHOP_ITEMS
 
 logger = logging.getLogger(__name__)
 
@@ -11,11 +11,11 @@ logger = logging.getLogger(__name__)
 DEFAULT_GLOBAL_USER_PROFILE = {
     "global_balance": 100,
     "inventory_global": [],
-    "bank_accounts": {},    # Sẽ có dạng {"GUILD_ID_STR": balance}
+    "bank_accounts": {},
     "level_global": 1,
     "xp_global": 0,
     "rebirths": 0,
-    "server_specific_data": {}, # Sẽ có dạng {"GUILD_ID_STR": {"level_local": 1, "xp_local": 0, "inventory_local": []}}
+    "server_specific_data": {},
     "last_work_global": 0,
     "last_daily_global": 0,
     "last_beg_global": 0,
@@ -25,26 +25,24 @@ DEFAULT_GLOBAL_USER_PROFILE = {
     "last_slots_global": 0,
     "last_cf_global": 0,
     "last_dice_global": 0,
-    "preferred_language": "vi" # Ngôn ngữ mặc định
+    "preferred_language": "vi"
 }
 
 DEFAULT_USER_SERVER_SPECIFIC_DATA = {
     "level_local": 1,
     "xp_local": 0,
     "inventory_local": []
-    # Thêm các trường dữ liệu local khác của user tại server ở đây
 }
 
 DEFAULT_GUILD_CONFIG = {
     "bare_command_active_channels": [],
     "muted_channels": []
-    # "min_local_level_for_global_item_tier1": 5 # Ví dụ
 }
 
-DEFAULT_GLOBAL_SHOP_STOCK_ITEM = { # Cấu trúc cho một item trong global_shop_stock
+DEFAULT_GLOBAL_SHOP_STOCK_ITEM_DETAILS = { # Cấu trúc chi tiết cho một item trong stock
     "current_stock": 0,
-    "max_stock": 10,
-    "base_price": 100, # Giá này có thể được lấy từ SHOP_ITEMS trong config.py
+    "max_stock": 10, # Giá trị mặc định, có thể lấy từ master list item
+    "base_price": 100, # Giá trị mặc định, nên lấy từ master list item
     "can_restock": True,
     "last_restock_time": 0
 }
@@ -52,10 +50,11 @@ DEFAULT_GLOBAL_SHOP_STOCK_ITEM = { # Cấu trúc cho một item trong global_sho
 DEFAULT_ECONOMY_STRUCTURE = {
     "users": {},
     "guild_configs": {},
-    "global_shop_stock": {}, # Thêm mục này
+    "global_shop_stock": {},
     "bot_metadata": {
-        "data_structure_version": "hybrid_v2_level_shop", # Cập nhật phiên bản
-        "notes": "Ecoworld initial data structure with global shop and levels."
+        "data_structure_version": "hybrid_v2.1_level_shop_global_per_server_bank",
+        "notes": "Ecoworld: Global user data, per-server banks, global shop, global/local levels.",
+        "last_global_event_timestamp": 0
     }
 }
 
@@ -65,11 +64,7 @@ def load_economy_data() -> dict:
     logger.debug(f"Đang tải dữ liệu kinh tế từ: {path_to_file}")
     if not os.path.exists(path_to_file):
         logger.warning(f"File {path_to_file} không tồn tại. Tạo file mới với cấu trúc mặc định.")
-        data = DEFAULT_ECONOMY_STRUCTURE.copy()
-        # Tạo bản sao sâu cho các dictionary lồng nhau để tránh tham chiếu dùng chung
-        for key in ["users", "guild_configs", "global_shop_stock", "bot_metadata"]:
-            if isinstance(DEFAULT_ECONOMY_STRUCTURE[key], dict):
-                data[key] = DEFAULT_ECONOMY_STRUCTURE[key].copy()
+        data = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in DEFAULT_ECONOMY_STRUCTURE.items()}
         save_economy_data(data)
         return data
     try:
@@ -77,10 +72,7 @@ def load_economy_data() -> dict:
             content = f.read()
             if not content.strip():
                 logger.warning(f"File {path_to_file} trống. Khởi tạo với cấu trúc mặc định.")
-                data = DEFAULT_ECONOMY_STRUCTURE.copy()
-                for key in ["users", "guild_configs", "global_shop_stock", "bot_metadata"]:
-                     if isinstance(DEFAULT_ECONOMY_STRUCTURE[key], dict):
-                        data[key] = DEFAULT_ECONOMY_STRUCTURE[key].copy()
+                data = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in DEFAULT_ECONOMY_STRUCTURE.items()}
                 save_economy_data(data)
                 return data
             loaded_data = json.loads(content)
@@ -97,19 +89,12 @@ def load_economy_data() -> dict:
             return loaded_data
     except json.JSONDecodeError:
         logger.error(f"LỖI JSONDecodeError: File {path_to_file} bị lỗi JSON. Khởi tạo file mới.", exc_info=True)
-        data = DEFAULT_ECONOMY_STRUCTURE.copy()
-        for key in ["users", "guild_configs", "global_shop_stock", "bot_metadata"]:
-            if isinstance(DEFAULT_ECONOMY_STRUCTURE[key], dict):
-                data[key] = DEFAULT_ECONOMY_STRUCTURE[key].copy()
+        data = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in DEFAULT_ECONOMY_STRUCTURE.items()}
         save_economy_data(data)
         return data
     except Exception as e:
         logger.error(f"Lỗi không xác định khi tải dữ liệu từ {path_to_file}: {e}", exc_info=True)
-        data = DEFAULT_ECONOMY_STRUCTURE.copy()
-        for key in ["users", "guild_configs", "global_shop_stock", "bot_metadata"]:
-             if isinstance(DEFAULT_ECONOMY_STRUCTURE[key], dict):
-                data[key] = DEFAULT_ECONOMY_STRUCTURE[key].copy()
-        return data
+        return {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in DEFAULT_ECONOMY_STRUCTURE.items()}
 
 def save_economy_data(data: dict):
     path_to_file = config.ECONOMY_FILE
@@ -132,24 +117,29 @@ def save_economy_data(data: dict):
 # --- Quản lý User Profile Toàn Cục ---
 def get_or_create_global_user_profile(data: dict, user_id: int) -> dict:
     user_id_str = str(user_id)
-    if not isinstance(data.get("users"), dict): data["users"] = {}
+    if "users" not in data or not isinstance(data.get("users"), dict): data["users"] = {}
     
     if user_id_str not in data["users"] or not isinstance(data["users"][user_id_str], dict):
-        data["users"][user_id_str] = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in DEFAULT_GLOBAL_USER_DATA.items()}
+        data["users"][user_id_str] = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in DEFAULT_GLOBAL_USER_PROFILE.items()}
         logger.info(f"User mới {user_id_str} đã được khởi tạo với dữ liệu toàn cục mặc định.")
     else:
         user_profile = data["users"][user_id_str]
         changed = False
-        for key, default_val in DEFAULT_GLOBAL_USER_DATA.items():
+        for key, default_val in DEFAULT_GLOBAL_USER_PROFILE.items():
             if key not in user_profile:
                 user_profile[key] = default_val.copy() if isinstance(default_val, (dict, list)) else default_val
                 changed = True
+        # Đảm bảo các cấu trúc con quan trọng tồn tại và đúng kiểu
         if "bank_accounts" not in user_profile or not isinstance(user_profile["bank_accounts"], dict):
             user_profile["bank_accounts"] = {}
             changed = True
         if "server_specific_data" not in user_profile or not isinstance(user_profile["server_specific_data"], dict):
             user_profile["server_specific_data"] = {}
             changed = True
+        if "inventory_global" not in user_profile or not isinstance(user_profile["inventory_global"], list):
+            user_profile["inventory_global"] = []
+            changed = True
+
         if changed:
             logger.debug(f"Đã cập nhật các key toàn cục/cấu trúc còn thiếu cho user {user_id_str}.")
             
@@ -157,22 +147,22 @@ def get_or_create_global_user_profile(data: dict, user_id: int) -> dict:
 
 # --- Quản lý Dữ liệu Riêng của User tại Server ---
 def get_or_create_user_server_data(global_user_profile: dict, guild_id: int) -> dict:
-    """Lấy hoặc tạo mục server_specific_data cho user tại guild."""
     guild_id_str = str(guild_id)
-    # global_user_profile['server_specific_data'] đã được đảm bảo là dict bởi hàm trên
     if guild_id_str not in global_user_profile["server_specific_data"] or \
-       not isinstance(global_user_profile["server_specific_data"][guild_id_str], dict):
-        global_user_profile["server_specific_data"][guild_id_str] = {
-            k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in DEFAULT_USER_SERVER_SPECIFIC_DATA.items()
-        }
+       not isinstance(global_user_profile["server_specific_data"].get(guild_id_str), dict):
+        global_user_profile["server_specific_data"][guild_id_str] = \
+            {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in DEFAULT_USER_SERVER_SPECIFIC_DATA.items()}
         logger.debug(f"Đã khởi tạo server_specific_data cho user tại guild {guild_id_str}.")
-    else: # Đảm bảo các key mặc định trong server_specific_data[guild_id_str]
+    else:
         server_data = global_user_profile["server_specific_data"][guild_id_str]
         changed = False
         for key, default_val in DEFAULT_USER_SERVER_SPECIFIC_DATA.items():
             if key not in server_data:
                 server_data[key] = default_val.copy() if isinstance(default_val, (dict, list)) else default_val
                 changed = True
+        if "inventory_local" not in server_data or not isinstance(server_data["inventory_local"], list):
+            server_data["inventory_local"] = []
+            changed = True
         if changed:
              logger.debug(f"Đã cập nhật các key local còn thiếu cho user tại guild {guild_id_str}.")
              
@@ -185,9 +175,8 @@ def get_server_bank_balance(global_user_profile: dict, guild_id: int) -> int:
 
 def set_server_bank_balance(global_user_profile: dict, guild_id: int, new_balance: int):
     guild_id_str = str(guild_id)
-    # Đảm bảo bank_accounts là dict đã được thực hiện trong get_or_create_global_user_profile
-    global_user_profile["bank_accounts"][guild_id_str] = int(new_balance)
-    logger.debug(f"Đã đặt bank balance cho guild {guild_id_str} của user thành {new_balance}.")
+    global_user_profile.setdefault("bank_accounts", {})[guild_id_str] = int(new_balance)
+    logger.debug(f"Đã đặt bank balance cho guild {guild_id_str} của user (trong global profile) thành {new_balance}.")
 
 # --- Guild Config ---
 def get_or_create_guild_config(data: dict, guild_id: int) -> dict:
@@ -195,7 +184,7 @@ def get_or_create_guild_config(data: dict, guild_id: int) -> dict:
     if not isinstance(data.get("guild_configs"), dict): data["guild_configs"] = {}
     
     if guild_id_str not in data["guild_configs"] or not isinstance(data["guild_configs"][guild_id_str], dict):
-        data["guild_configs"][guild_id_str] = DEFAULT_GUILD_CONFIG.copy()
+        data["guild_configs"][guild_id_str] = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in DEFAULT_GUILD_CONFIG.items()}
         logger.info(f"Config mặc định đã được tạo cho guild mới: {guild_id_str}")
     else:
         guild_cfg = data["guild_configs"][guild_id_str]
@@ -215,38 +204,40 @@ def get_or_create_global_shop_stock(data: dict) -> dict:
         logger.warning("'global_shop_stock' key không tồn tại hoặc không phải dict. Đã khởi tạo lại.")
     return data["global_shop_stock"]
 
-def get_shop_item_info(shop_stock: dict, item_id: str) -> Optional[dict]:
+def get_shop_item_details_from_stock(shop_stock: dict, item_id: str) -> Optional[dict]:
+    """Lấy thông tin chi tiết của item từ global_shop_stock (current_stock, base_price etc.)"""
     return shop_stock.get(item_id)
 
-def update_shop_item_stock(shop_stock: dict, item_id: str, quantity_change: int):
-    """quantity_change > 0 để tăng stock (restock), < 0 để giảm stock (mua)."""
-    if item_id not in shop_stock: # Nếu item chưa từng có trong shop stock động
-        # Lấy thông tin từ SHOP_ITEMS trong config để tạo mục mới
-        if item_id in config.SHOP_ITEMS: # Kiểm tra xem item_id có trong danh sách item gốc không
+def update_shop_item_stock(shop_stock: dict, item_id: str, quantity_change: int, item_master_list_entry: Optional[dict] = None):
+    """
+    Cập nhật stock cho item. quantity_change > 0 để tăng (restock), < 0 để giảm (mua).
+    item_master_list_entry là entry từ config.SHOP_ITEMS nếu item chưa có trong stock.
+    """
+    if item_id not in shop_stock: 
+        if item_master_list_entry:
             shop_stock[item_id] = {
-                "current_stock": 0, # Khởi tạo stock là 0
-                "max_stock": config.SHOP_ITEMS[item_id].get("default_max_stock", 10), # Lấy max_stock từ config hoặc mặc định
-                "base_price": config.SHOP_ITEMS[item_id].get("price"),
-                "can_restock": config.SHOP_ITEMS[item_id].get("default_can_restock", True),
+                "current_stock": 0,
+                "max_stock": item_master_list_entry.get("max_stock_default", 10), 
+                "base_price": item_master_list_entry.get("price"), # Lấy giá gốc từ master list
+                "can_restock": item_master_list_entry.get("can_restock_default", True),
                 "last_restock_time": 0
             }
-            logger.info(f"Vật phẩm '{item_id}' được thêm vào global_shop_stock lần đầu.")
+            logger.info(f"Vật phẩm '{item_id}' được thêm vào global_shop_stock lần đầu với thông tin từ master list.")
         else:
-            logger.error(f"Cố gắng cập nhật stock cho vật phẩm '{item_id}' không có trong SHOP_ITEMS gốc.")
-            return False # Không thể cập nhật stock cho item không xác định
+            logger.error(f"Cố gắng cập nhật stock cho vật phẩm mới '{item_id}' mà không có thông tin từ master list.")
+            return False 
 
     item_data = shop_stock[item_id]
-    item_data["current_stock"] = max(0, item_data["current_stock"] + quantity_change) # Đảm bảo stock không âm
-    if quantity_change > 0 : # Restock
+    item_data["current_stock"] = max(0, item_data["current_stock"] + quantity_change)
+    if quantity_change > 0 : # Nếu là restock
         item_data["last_restock_time"] = datetime.now().timestamp()
     logger.debug(f"Stock của vật phẩm '{item_id}' đã cập nhật: {quantity_change}. Stock mới: {item_data['current_stock']}")
     return True
 
-
-# --- Các hàm quản lý MODERATOR (sử dụng file moderators.json riêng, giữ nguyên) ---
+# --- Các hàm quản lý MODERATOR (giữ nguyên, sử dụng file moderators.json riêng) ---
 def load_moderator_ids() -> list:
-    # ... (Nội dung hàm này giữ nguyên như phiên bản trước) ...
     path_to_file = config.MODERATORS_FILE 
+    # ... (Nội dung hàm này giữ nguyên như phiên bản trước) ...
     logger.debug(f"Đang tải danh sách moderator từ: {path_to_file}")
     try:
         if not os.path.exists(path_to_file):
