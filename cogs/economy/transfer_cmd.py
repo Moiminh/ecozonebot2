@@ -10,7 +10,7 @@ from core.database import (
 )
 from core.utils import try_send
 from core.config import CURRENCY_SYMBOL
-from core.icons import ICON_GIFT, ICON_ERROR, ICON_MONEY_BAG, ICON_INFO # Đảm bảo có ICON_INFO
+from core.icons import ICON_GIFT, ICON_ERROR, ICON_MONEY_BAG, ICON_INFO
 
 logger = logging.getLogger(__name__)
 
@@ -21,13 +21,15 @@ class TransferCommandCog(commands.Cog, name="Transfer Command"):
 
     @commands.command(name='transfer', aliases=['give', 'pay'])
     async def transfer(self, ctx: commands.Context, recipient: nextcord.User, amount: int):
-        """Chuyển một số tiền từ Ví Toàn Cục của bạn cho người dùng khác."""
+        """Chuyển một số tiền từ Ví Toàn Cục của bạn cho người dùng khác (toàn cục)."""
         
         sender = ctx.author
-        # Thêm thông tin Guild vào log debug ban đầu
-        guild_info_for_log = f"tại guild '{ctx.guild.name}' ({ctx.guild.id})" if ctx.guild else "qua DM"
-        logger.debug(f"Lệnh 'transfer' được gọi bởi {sender.name} (ID: {sender.id}) "
-                     f"đến {recipient.name} (ID: {recipient.id}) với số tiền {amount} {guild_info_for_log}.")
+        guild_name_for_log = ctx.guild.name if ctx.guild else "DM"
+        guild_id_for_log = ctx.guild.id if ctx.guild else "N/A"
+        
+        logger.debug(f"Lệnh 'transfer' được gọi bởi {sender.name} ({sender.id}) "
+                     f"đến {recipient.name} ({recipient.id}) với số tiền {amount} "
+                     f"từ guild '{guild_name_for_log}' ({guild_id_for_log}).")
 
         if amount <= 0:
             logger.warning(f"User {sender.id} cố gắng transfer số tiền không hợp lệ (<=0): {amount} cho {recipient.id}.")
@@ -44,14 +46,18 @@ class TransferCommandCog(commands.Cog, name="Transfer Command"):
 
         economy_data = load_economy_data()
         
+        # Lấy profile toàn cục của người gửi
         sender_profile = get_or_create_global_user_profile(economy_data, sender.id)
         original_sender_global_balance = sender_profile.get("global_balance", 0)
 
         if original_sender_global_balance < amount:
-            logger.warning(f"User {sender.id} không đủ tiền trong Ví Toàn Cục để transfer {amount} cho {recipient.id}. Số dư ví: {original_sender_global_balance}")
+            logger.warning(f"User {sender.id} không đủ tiền trong Ví Toàn Cục để transfer {amount} cho {recipient.id}. "
+                           f"Số dư ví: {original_sender_global_balance}")
             await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền trong Ví Toàn Cục! {ICON_MONEY_BAG} Ví của bạn: **{original_sender_global_balance:,}** {CURRENCY_SYMBOL}.")
+            save_economy_data(economy_data) # Lưu nếu get_or_create_global_user_profile có tạo mới sender
             return 
         
+        # Lấy profile toàn cục của người nhận
         recipient_profile = get_or_create_global_user_profile(economy_data, recipient.id)
         original_recipient_global_balance = recipient_profile.get("global_balance", 0)
         
@@ -59,16 +65,13 @@ class TransferCommandCog(commands.Cog, name="Transfer Command"):
         sender_profile["global_balance"] = original_sender_global_balance - amount
         recipient_profile["global_balance"] = original_recipient_global_balance + amount
         
-        save_economy_data(economy_data)
+        save_economy_data(economy_data) # Lưu lại tất cả thay đổi (cả sender và recipient)
 
-        # Log INFO cho hành động này sẽ không có guild_id vì nó là giao dịch toàn cục
-        # Tuy nhiên, lệnh được gọi từ một guild, nên có thể log guild nơi lệnh được gọi nếu muốn.
-        # Hiện tại, chỉ log thông tin người gửi, người nhận và số tiền.
         logger.info(f"GLOBAL TRANSFER: User {sender.display_name} ({sender.id}) đã transfer {amount:,} {CURRENCY_SYMBOL} "
                     f"cho {recipient.display_name} ({recipient.id}). "
                     f"Sender global_balance: {original_sender_global_balance:,} -> {sender_profile['global_balance']:,}. "
                     f"Recipient global_balance: {original_recipient_global_balance:,} -> {recipient_profile['global_balance']:,}. "
-                    f"(Lệnh gọi từ guild: '{ctx.guild.name if ctx.guild else 'DM'}' ({ctx.guild.id if ctx.guild else 'N/A'}))")
+                    f"(Lệnh gọi từ guild: '{guild_name_for_log}' ({guild_id_for_log}))")
         
         await try_send(ctx, content=f"{ICON_GIFT} {sender.mention} đã chuyển **{amount:,}** {CURRENCY_SYMBOL} vào Ví Toàn Cục cho {recipient.mention}!")
         logger.debug(f"Lệnh 'transfer' từ {sender.name} đến {recipient.name} đã xử lý xong.")
