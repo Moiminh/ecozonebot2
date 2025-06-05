@@ -5,37 +5,36 @@ import os
 from dotenv import load_dotenv 
 
 # --- BƯỚC 1: TẢI BIẾN MÔI TRƯỜNG TRƯỚC TIÊN ---
+# Điều này đảm bảo os.getenv() có thể truy cập các biến từ .env ở bất kỳ đâu sau đó.
 load_dotenv() 
 # -----------------------------------------
 
-# --- BƯỚC 2: THIẾT LẬP LOGGING SAU KHI ĐÃ LOAD .ENV ---
-# Import hàm setup_logging từ module logger trong package core
-# Việc import này nên diễn ra sau load_dotenv() nếu logger.py cũng có thể os.getenv()
-# tuy nhiên, logger.py của chúng ta lấy URL webhook từ os.getenv bên trong setup_logging,
-# nên thứ tự này vẫn ổn.
+# Import module logging để có thể tạo main_logger sớm
+import logging 
+
 from core.logger import setup_logging 
-setup_logging() # Gọi hàm này để thiết lập logging
-# ----------------------------------------------
 
-# Import các thành phần khác của bot SAU KHI logging đã được thiết lập
-from core.bot import bot, load_all_cogs
-import logging # Import module logging để sử dụng
+# Import đối tượng bot và hàm load_all_cogs TỪ core.bot
+# Việc này cần thiết để lấy bot.loop TRƯỚC KHI gọi setup_logging nếu muốn truyền loop
+from core.bot import bot, load_all_cogs 
 
-# Tạo một logger riêng cho file main.py này
-main_logger = logging.getLogger(__name__) # Sẽ có tên là '__main__'
+setup_logging(bot_event_loop=bot.loop) 
+# -------------------------------------------------------------
 
-# === KIỂM TRA WEBHOOK URL NGAY SAU KHI LOAD_DOTENV VÀ SETUP LOGGING ===
-# Dùng main_logger.debug để nó chỉ vào file general log, không làm rối console
-webhook_url_in_main = os.getenv("DISCORD_WEBHOOK_URL")
-if webhook_url_in_main:
-    main_logger.debug(f"Webhook URL được tìm thấy bởi main.py: '{webhook_url_in_main[:30]}...' (phần đầu)")
+# Bây giờ mới lấy main_logger, sau khi root logger đã được cấu hình bởi setup_logging
+main_logger = logging.getLogger(__name__) 
+
+# === KIỂM TRA LẠI CÁC BIẾN MÔI TRƯỜNG SAU KHI LOGGING ĐÃ SETUP ===
+# (Các dòng print debug trước đó trong logger.py cũng đã làm việc này)
+if os.getenv("DISCORD_WEBHOOK_URL"):
+    main_logger.debug(f"Webhook URL được tìm thấy bởi main.py (sau setup_logging): '{os.getenv('DISCORD_WEBHOOK_URL')[:30]}...'")
 else:
-    main_logger.debug("Webhook URL KHÔNG được tìm thấy bởi main.py sau khi load_dotenv().")
-# ===================================================================
+    main_logger.debug("Webhook URL KHÔNG được tìm thấy bởi main.py (sau setup_logging).")
+# =====================================================================
 
 if __name__ == "__main__":
     main_logger.info("==================================================")
-    main_logger.info("Bắt đầu khởi chạy Bot Kinh Tế!")
+    main_logger.info("Bắt đầu khởi chạy Bot Kinh Tế! (main.py)") # Thêm (main.py) để rõ nguồn
     main_logger.info("==================================================")
 
     actual_bot_token = os.getenv("BOT_TOKEN")
@@ -48,13 +47,11 @@ if __name__ == "__main__":
     else:
         main_logger.info("BOT_TOKEN đã được tải thành công.")
 
-    # Thông báo về Webhook URL dựa trên giá trị đã lấy được ở trên (chủ yếu để debug)
-    # Hàm setup_logging() trong logger.py cũng đã có thông báo tương tự rồi.
-    # Dòng này trong main.py chỉ để xác nhận lại lần nữa nếu cần.
-    if webhook_url_in_main: # Sử dụng biến đã lấy ở trên
-        main_logger.info(f"DISCORD_WEBHOOK_URL có vẻ đã được tải (kiểm tra từ main.py).")
+    # Thông báo về Webhook URL (logger.py cũng đã có thông báo tương tự từ BotSetup)
+    if os.getenv("DISCORD_WEBHOOK_URL"):
+        main_logger.info(f"DISCORD_WEBHOOK_URL có vẻ đã được tải (kiểm tra từ main.py). Webhook logging nên hoạt động.")
     else:
-        main_logger.warning("DISCORD_WEBHOOK_URL không tìm thấy trong .env (kiểm tra từ main.py). Logging qua Webhook có thể không hoạt động.")
+        main_logger.warning("DISCORD_WEBHOOK_URL không tìm thấy trong .env (kiểm tra từ main.py). Logging qua Webhook sẽ bị vô hiệu hóa.")
 
     main_logger.info("Đang kiểm tra và tải các Cogs...")
     try:
