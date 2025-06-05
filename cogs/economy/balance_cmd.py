@@ -1,45 +1,44 @@
 # bot/cogs/economy/balance_cmd.py
 import nextcord
 from nextcord.ext import commands
-import logging # <<< THÊM IMPORT NÀY
+import logging 
 
-# Import các thành phần cần thiết từ package 'core'
-from core.database import get_user_data
+# Import các hàm mới từ database và các thành phần khác
+from core.database import load_economy_data, get_or_create_global_user_profile, save_economy_data # Thêm save_economy_data nếu có thay đổi
 from core.utils import try_send
 from core.config import CURRENCY_SYMBOL
-from core.icons import ICON_MONEY_BAG, ICON_ERROR, ICON_INFO # Giả sử ICON_INFO đã được import
+from core.icons import ICON_MONEY_BAG, ICON_ERROR, ICON_INFO
 
-logger = logging.getLogger(__name__) # <<< LẤY LOGGER CHO MODULE NÀY
+logger = logging.getLogger(__name__)
 
 class BalanceCommandCog(commands.Cog, name="Balance Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.debug(f"BalanceCommandCog initialized.") # DEBUG, chỉ vào general log
+        logger.debug(f"BalanceCommandCog initialized.")
 
     @commands.command(name='balance', aliases=['bal', 'cash', 'money', '$'])
     async def balance(self, ctx: commands.Context, user: nextcord.Member = None):
-        """Hiển thị số dư tiền trong ví của bạn hoặc của một người dùng khác."""
         target_user = user or ctx.author
-        logger.debug(f"Lệnh 'balance' được gọi bởi {ctx.author.name} cho target {target_user.name} (ID: {target_user.id}) tại guild {ctx.guild.id}.")
-
-        guild_id_str = str(ctx.guild.id)
-        user_id_str = str(target_user.id)
+        logger.debug(f"Lệnh 'balance' được gọi bởi {ctx.author.name} cho target {target_user.name} (ID: {target_user.id}) tại guild '{ctx.guild.name}' ({ctx.guild.id}).")
         
         try:
-            full_data = get_user_data(ctx.guild.id, target_user.id)
-            user_account_data = full_data.get(guild_id_str, {}).get(user_id_str)
-
-            if user_id_str == "config" or not isinstance(user_account_data, dict):
-                logger.warning(f"Dữ liệu tài khoản không hợp lệ cho user {user_id_str} guild {guild_id_str} khi gọi lệnh 'balance'. Data: {user_account_data}")
-                await try_send(ctx, content=f"{ICON_ERROR} Lỗi: Dữ liệu tài khoản của {target_user.mention} không đúng định dạng hoặc không tìm thấy.")
-                return
+            economy_data = load_economy_data() # Load toàn bộ dữ liệu
+            # Lấy profile toàn cục của target_user, hàm này sẽ tạo nếu chưa có
+            # và đảm bảo các key mặc định tồn tại.
+            target_user_profile = get_or_create_global_user_profile(economy_data, target_user.id)
             
-            bal = user_account_data.get("balance", 0)
-            await try_send(ctx, content=f"{ICON_MONEY_BAG} Ví của {target_user.mention}: **{bal:,}** {CURRENCY_SYMBOL}.")
-            logger.debug(f"Hiển thị balance thành công cho {target_user.name}: {bal} {CURRENCY_SYMBOL}.")
+            # Truy cập ví toàn cục
+            global_bal = target_user_profile.get("global_balance", 0) # Mặc định là 0 nếu key không có (dù get_or_create... đã xử lý)
+            
+            await try_send(ctx, content=f"{ICON_MONEY_BAG} Ví Toàn Cục của {target_user.mention}: **{global_bal:,}** {CURRENCY_SYMBOL}.")
+            logger.debug(f"Hiển thị global_balance thành công cho {target_user.name}: {global_bal} {CURRENCY_SYMBOL}.")
+            
+
+            save_economy_data(economy_data) # Lưu lại để đảm bảo user mới (nếu có) được ghi nhận
+
 
         except Exception as e:
-            logger.error(f"Lỗi trong lệnh 'balance' cho user {target_user.name}: {e}", exc_info=True) # Ghi cả traceback
+            logger.error(f"Lỗi trong lệnh 'balance' cho user {target_user.name}: {e}", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi không xác định khi xem số dư của {target_user.mention}.")
 
 def setup(bot: commands.Bot):
