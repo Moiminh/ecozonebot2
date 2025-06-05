@@ -20,15 +20,15 @@ from core.icons import (
 
 logger = logging.getLogger(__name__)
 
-# Đổi tên class Cog để dễ nhận biết trên terminal khi bot tải
-class HelpSlashCommandCog(commands.Cog, name="HelpSlashRenamedCog"): 
+# Đổi tên class Cog cho phù hợp với tên lệnh mới /menu
+class MenuSlashCommandCog(commands.Cog, name="MenuSlashCommandCog"): 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info(f"HelpSlashRenamedCog initialized (command will be /minhbeohelp).")
+        logger.info(f"MenuSlashCommandCog initialized (command is /menu).")
 
     async def _send_general_help_embed(self, interaction: nextcord.Interaction):
-        """Xây dựng và gửi Embed trợ giúp chung."""
-        # Sử dụng interaction.application_command.name để lấy tên lệnh slash hiện tại
+        """Xây dựng và gửi Embed trợ giúp chung (menu)."""
+        # Sử dụng interaction.application_command.name để lấy tên lệnh slash hiện tại (sẽ là "menu")
         current_slash_command_name = interaction.application_command.name 
         logger.debug(f"Entering _send_general_help_embed for {interaction.user.name} (for /{current_slash_command_name})")
         try:
@@ -37,11 +37,11 @@ class HelpSlashCommandCog(commands.Cog, name="HelpSlashRenamedCog"):
                 title=f"{ICON_HELP} Menu Trợ Giúp - Bot Kinh Tế",
                 description=(
                     f"Chào mừng bạn đến với Bot Kinh Tế! Dưới đây là các lệnh bạn có thể sử dụng.\n"
-                    f"Để xem chi tiết một lệnh, dùng `/{current_slash_command_name} lệnh <tên_lệnh>` (ví dụ: `/{current_slash_command_name} lệnh work`).\n"
-                    f"*Lưu ý: Hầu hết các lệnh đều có tên gọi tắt (alias) được liệt kê trong chi tiết lệnh.*\n"
+                    f"Để xem chi tiết một lệnh prefix, dùng `/{current_slash_command_name} lệnh <tên_lệnh_prefix>` (ví dụ: `/{current_slash_command_name} lệnh work`).\n"
+                    f"*Lưu ý: Hầu hết các lệnh prefix đều có tên gọi tắt (alias) được liệt kê trong chi tiết lệnh.*\n"
                     f"Quản trị viên có thể dùng `{prefix}auto` để bật/tắt lệnh không cần prefix trong một kênh."
                 ),
-                color=nextcord.Color.dark_theme(),
+                color=nextcord.Color.dark_theme(), # Giả sử bạn có màu này, hoặc dùng nextcord.Color.blue()
             )
             
             embed.add_field(name=f"{ICON_BANK} Tài Khoản & Tổng Quan",
@@ -60,10 +60,10 @@ class HelpSlashCommandCog(commands.Cog, name="HelpSlashRenamedCog"):
                             value=f"`{prefix}addmoney` `{prefix}removemoney` `{prefix}auto` `{prefix}mutebot` `{prefix}unmutebot`",
                             inline=False)
             
-            embed.set_footer(text=f"Bot được phát triển bởi MinhBeo8. Gõ /{current_slash_command_name} lệnh <tên_lệnh> để biết thêm chi tiết.")
+            embed.set_footer(text=f"Bot được phát triển bởi MinhBeo8. Gõ /{current_slash_command_name} lệnh <tên_lệnh_prefix> để biết thêm chi tiết.")
             
             await interaction.followup.send(embed=embed, ephemeral=True)
-            logger.debug(f"General help followup sent successfully to {interaction.user.name} (for /{current_slash_command_name}).")
+            logger.debug(f"General help (menu) followup sent successfully to {interaction.user.name} (for /{current_slash_command_name}).")
 
         except Exception as e:
             logger.error(f"Lỗi trong _send_general_help_embed (for /{current_slash_command_name}):", exc_info=True)
@@ -134,9 +134,9 @@ class HelpSlashCommandCog(commands.Cog, name="HelpSlashRenamedCog"):
             except Exception as followup_e:
                 logger.error(f"Không thể gửi tin nhắn lỗi followup cho specific help (for /{current_slash_command_name}): {followup_e}", exc_info=True)
 
-    # Đổi tên lệnh slash ở đây để thử nghiệm
-    @nextcord.slash_command(name="minhbeohelp", description=f"{ICON_INFO} Hiển thị thông tin trợ giúp cho các lệnh của bot.")
-    async def help_slash_command(self,
+    # === ĐỔI TÊN LỆNH SLASH THÀNH /menu ===
+    @nextcord.slash_command(name="menu", description=f"{ICON_INFO} Hiển thị menu trợ giúp và thông tin lệnh của bot.")
+    async def menu_slash_command(self, # Đổi tên hàm Python cho nhất quán (tùy chọn)
                                  interaction: nextcord.Interaction,
                                  command_name: str = nextcord.SlashOption(
                                      name="lệnh", 
@@ -146,8 +146,7 @@ class HelpSlashCommandCog(commands.Cog, name="HelpSlashRenamedCog"):
                                  )):
         """Hiển thị danh sách các lệnh hoặc thông tin chi tiết về một lệnh (prefix) cụ thể."""
         
-        # Lấy tên lệnh slash thực tế đang được gọi để dùng trong log và hướng dẫn
-        actual_slash_command_name = interaction.application_command.name 
+        actual_slash_command_name = interaction.application_command.name # Sẽ là "menu"
         logger.debug(f"/{actual_slash_command_name} slash command invoked by {interaction.user.name} (ID: {interaction.user.id}). Argument 'lệnh': '{command_name}'")
         
         try:
@@ -167,10 +166,9 @@ class HelpSlashCommandCog(commands.Cog, name="HelpSlashRenamedCog"):
             logger.critical(f"Lỗi nghiêm trọng không bắt được trong /{actual_slash_command_name} bởi {interaction.user.name}:", exc_info=True)
             try:
                 if not interaction.is_expired():
-                    # Sử dụng followup vì đã defer
                     await interaction.followup.send(content=f"{ICON_ERROR} Đã có lỗi nghiêm trọng khi xử lý yêu cầu `/{actual_slash_command_name}` của bạn.",ephemeral=True)
             except Exception as final_followup_e:
                 logger.error(f"Không thể gửi thông báo lỗi cuối cùng cho /{actual_slash_command_name}: {final_followup_e}", exc_info=True)
 
 def setup(bot: commands.Bot):
-    bot.add_cog(HelpSlashCommandCog(bot))
+    bot.add_cog(MenuSlashCommandCog(bot)) # Nhớ cập nhật tên class Cog ở đây
