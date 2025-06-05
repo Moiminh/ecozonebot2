@@ -23,19 +23,15 @@ class DepositCommandCog(commands.Cog, name="Deposit Command"):
 
     @commands.command(name='deposit', aliases=['dep'])
     async def deposit(self, ctx: commands.Context, amount_str: str):
-        """Gửi tiền từ Ví Toàn Cục vào Ngân Hàng của bạn tại server này."""
         author_id = ctx.author.id
-        guild_id = ctx.guild.id # Lệnh này chỉ dùng trong guild
-
+        guild_id = ctx.guild.id 
+        
         logger.debug(f"Lệnh 'deposit' được gọi bởi {ctx.author.name} ({author_id}) với amount_str='{amount_str}' tại guild '{ctx.guild.name}' ({guild_id}).")
         
         economy_data = load_economy_data()
         user_profile = get_or_create_global_user_profile(economy_data, author_id)
         
         original_global_balance = user_profile.get("global_balance", 0)
-        # Lấy (hoặc khởi tạo nếu chưa có) tài khoản ngân hàng của user tại server này
-        # get_or_create_user_server_data đã đảm bảo 'bank_accounts' và guild_id trong đó tồn tại (với giá trị mặc định)
-        # nên get_server_bank_balance sẽ luôn trả về một giá trị số.
         original_server_bank_balance = get_server_bank_balance(user_profile, guild_id)
         
         amount_to_deposit = 0
@@ -63,10 +59,9 @@ class DepositCommandCog(commands.Cog, name="Deposit Command"):
             await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền trong Ví Toàn Cục. {ICON_MONEY_BAG} Ví của bạn: {original_global_balance:,} {CURRENCY_SYMBOL}")
             return 
         
-        # Thực hiện giao dịch
         user_profile["global_balance"] = original_global_balance - amount_to_deposit
         new_server_bank_balance = original_server_bank_balance + amount_to_deposit
-        set_server_bank_balance(user_profile, guild_id, new_server_bank_balance) # Cập nhật bank tại server này
+        set_server_bank_balance(user_profile, guild_id, new_server_bank_balance)
         
         save_economy_data(economy_data) 
 
