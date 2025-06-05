@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 import asyncio
 import aiohttp
-import traceback # Cần thiết để format traceback cho lỗi
+import traceback 
 
 LOG_DIRECTORY = "logs"
 GENERAL_LOG_FILENAME_FORMAT = "bot_general_{timestamp}.log"
@@ -20,33 +20,27 @@ class CogInfoFilter(logging.Filter):
     def filter(self, record):
         return record.name.startswith(self.prefix) and record.levelno == self.level
 
-# --- Discord Webhook Handler (Đã sửa lỗi asyncio.run và cải thiện việc lấy loop) ---
+# --- Discord Webhook Handler (Giữ nguyên định nghĩa class) ---
 class DiscordWebhookHandler(logging.Handler):
-    def __init__(self, webhook_url: str, bot_event_loop=None): # Nhận bot_event_loop
+    def __init__(self, webhook_url: str, bot_event_loop=None):
         super().__init__()
         self.webhook_url = webhook_url
-        self.bot_event_loop = bot_event_loop # Lưu lại event loop của bot
+        self.bot_event_loop = bot_event_loop
 
     async def _send_payload_async(self, payload: dict):
-        """Hàm riêng để gửi payload một cách không đồng bộ."""
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(self.webhook_url, json=payload) as response:
                     if response.status >= 400:
                         print(f"[CRITICAL][WebhookSendError] Lỗi HTTP {response.status} khi gửi webhook: {await response.text()}")
-                    # else:
-                        # print(f"[DEBUG][WebhookSend] Webhook sent successfully, status: {response.status}")
         except aiohttp.ClientError as e:
             print(f"[CRITICAL][WebhookSendError] Lỗi kết nối ClientError khi gửi webhook: {e}")
         except Exception as e:
             print(f"[CRITICAL][WebhookSendError] Lỗi không xác định khi gửi webhook: {e}")
-            # Ghi traceback vào file riêng để không làm ngập log chính nếu có lỗi liên tục
-            log_dir_exists = os.path.exists(LOG_DIRECTORY)
-            if not log_dir_exists:
+            if not os.path.exists(LOG_DIRECTORY):
                 try: os.makedirs(LOG_DIRECTORY)
-                except: pass # Bỏ qua nếu không tạo được ở đây
-            
-            if os.path.exists(LOG_DIRECTORY): # Chỉ ghi nếu thư mục tồn tại
+                except: pass
+            if os.path.exists(LOG_DIRECTORY):
                 with open(os.path.join(LOG_DIRECTORY, "webhook_send_errors.log"), "a", encoding="utf-8") as f_err:
                     f_err.write(f"--- Webhook Send Error at {datetime.now()} ---\n")
                     traceback.print_exc(file=f_err)
@@ -55,7 +49,6 @@ class DiscordWebhookHandler(logging.Handler):
     def emit(self, record: logging.LogRecord):
         payload = None 
         log_time = datetime.fromtimestamp(record.created)
-
         try: 
             if record.levelno >= logging.ERROR:
                 message_content = record.getMessage() 
@@ -86,31 +79,24 @@ class DiscordWebhookHandler(logging.Handler):
             print(f"[ERROR][DiscordWebhookHandler] Lỗi khi định dạng log record: {e_format}")
             self.handleError(record)
             return
-
         if payload:
             loop_to_use = self.bot_event_loop
-            if loop_to_use is None: # Nếu bot_event_loop không được truyền vào lúc khởi tạo
+            if loop_to_use is None: 
                 try:
                     loop_to_use = asyncio.get_running_loop()
                 except RuntimeError:
                     print("[WARNING][DiscordWebhookHandler] Không tìm thấy event loop đang chạy để gửi webhook. Log có thể bị mất.")
-                    return # Không thể gửi nếu không có loop
-
+                    return
             if loop_to_use and loop_to_use.is_running():
                 try:
-                    # asyncio.run_coroutine_threadsafe an toàn khi gọi từ một luồng khác (logging có thể chạy trên thread riêng)
-                    # hoặc khi bạn không chắc chắn về ngữ cảnh luồng.
                     asyncio.run_coroutine_threadsafe(self._send_payload_async(payload), loop_to_use)
                 except Exception as e_task:
                     print(f"[ERROR][DiscordWebhookHandler] Lỗi khi lên lịch gửi webhook: {e_task}")
                     self.handleError(record)
             else:
                 print("[WARNING][DiscordWebhookHandler] Event loop không ở trạng thái running hoặc không tồn tại khi cố gắng gửi webhook.")
-        # else:
-            # print(f"Skipping webhook for record: {record.name} - {record.levelname}")
 
-# --- Hàm setup_logging ---
-# Tham số bot_event_loop sẽ được truyền từ main.py
+# --- Hàm setup_logging (ĐÃ CẬP NHẬT ĐỂ TẠM VÔ HIỆU HÓA WEBHOOK HANDLER) ---
 def setup_logging(bot_event_loop=None): 
     if not os.path.exists(LOG_DIRECTORY):
         try:
@@ -122,7 +108,6 @@ def setup_logging(bot_event_loop=None):
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     
     webhook_url_for_debug = os.getenv("DISCORD_WEBHOOK_URL")
-    # Dòng print này có thể comment lại sau khi xác nhận URL được đọc đúng
     print(f"\n[DEBUG FROM LOGGER.PY] Webhook URL from env at setup_logging start: '{webhook_url_for_debug}'\n") 
 
     general_log_filename = os.path.join(LOG_DIRECTORY, GENERAL_LOG_FILENAME_FORMAT.format(timestamp=timestamp))
@@ -141,7 +126,7 @@ def setup_logging(bot_event_loop=None):
     if root_logger.hasHandlers():
         root_logger.handlers.clear()
 
-    # General File Handler
+    # General File Handler (Giữ nguyên)
     try: 
         general_file_handler = logging.handlers.RotatingFileHandler(
             filename=general_log_filename, encoding='utf-8',
@@ -151,7 +136,7 @@ def setup_logging(bot_event_loop=None):
         root_logger.addHandler(general_file_handler)
     except Exception as e: print(f"Không thể thiết lập general_file_handler: {e}")
     
-    # Action Log File Handler
+    # Action Log File Handler (Giữ nguyên)
     try: 
         action_file_handler = logging.handlers.RotatingFileHandler(
             filename=action_log_filename, encoding='utf-8',
@@ -162,7 +147,7 @@ def setup_logging(bot_event_loop=None):
         root_logger.addHandler(action_file_handler)
     except Exception as e: print(f"Không thể thiết lập action_file_handler: {e}")
     
-    # Console Handler
+    # Console Handler (Giữ nguyên)
     try: 
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(console_formatter)
@@ -170,19 +155,25 @@ def setup_logging(bot_event_loop=None):
         root_logger.addHandler(console_handler)
     except Exception as e: print(f"Không thể thiết lập console_handler: {e}")
 
-    # Webhook Handler
+    # --- WEBHOOK HANDLER (TẠM THỜI VÔ HIỆU HÓA ĐỂ DEBUG) ---
     if webhook_url_for_debug:
         try:
-            # Truyền bot_event_loop vào handler khi khởi tạo
             webhook_handler = DiscordWebhookHandler(webhook_url_for_debug, bot_event_loop=bot_event_loop) 
-            webhook_handler.setLevel(logging.INFO) # Webhook sẽ nhận INFO trở lên, emit sẽ lọc chi tiết
-            root_logger.addHandler(webhook_handler)
-            logging.getLogger("BotSetup").info("Discord Webhook logging handler đã được thiết lập.")
+            webhook_handler.setLevel(logging.INFO) 
+            
+            # DÒNG NÀY ĐƯỢC COMMENT OUT ĐỂ VÔ HIỆU HÓA WEBHOOK HANDLER
+            # root_logger.addHandler(webhook_handler) 
+            
+            # THAY BẰNG THÔNG BÁO NÀY
+            logging.getLogger("BotSetup").warning("Discord Webhook logging handler ĐANG BỊ TẠM THỜI VÔ HIỆU HÓA cho mục đích debug lỗi gửi 2 tin nhắn.")
+            # logging.getLogger("BotSetup").info("Discord Webhook logging handler đã được thiết lập.") # Comment dòng này
         except Exception as e:
-            logging.getLogger("BotSetup").error(f"Không thể thiết lập DiscordWebhookHandler: {e}", exc_info=True)
+            logging.getLogger("BotSetup").error(f"Lỗi khi khởi tạo DiscordWebhookHandler (dù đang bị vô hiệu hóa): {e}", exc_info=True)
     else:
         logging.getLogger("BotSetup").warning("DISCORD_WEBHOOK_URL không được tìm thấy trong .env. Logging qua Webhook bị vô hiệu hóa.")
+    # ---------------------------------------------------------
     
     logging.getLogger("BotSetup").info("Hệ thống Logging đã được thiết lập (hoặc cố gắng thiết lập).")
     logging.getLogger("BotSetup").debug(f"General logs sẽ được ghi vào: {general_log_filename}")
     logging.getLogger("BotSetup").debug(f"Player action logs (INFO từ cogs) sẽ được ghi vào: {action_log_filename}")
+
