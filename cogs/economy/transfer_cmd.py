@@ -25,11 +25,11 @@ class TransferCommandCog(commands.Cog, name="Transfer Command"):
         
         sender = ctx.author
         guild_name_for_log = ctx.guild.name if ctx.guild else "DM"
-        guild_id_for_log = ctx.guild.id if ctx.guild else "N/A"
+        guild_id_for_log = ctx.guild.id if ctx.guild else "N/A" # Lệnh có thể gọi từ DM
         
         logger.debug(f"Lệnh 'transfer' được gọi bởi {sender.name} ({sender.id}) "
                      f"đến {recipient.name} ({recipient.id}) với số tiền {amount} "
-                     f"từ guild '{guild_name_for_log}' ({guild_id_for_log}).")
+                     f"từ context guild '{guild_name_for_log}' ({guild_id_for_log}).")
 
         if amount <= 0:
             logger.warning(f"User {sender.id} cố gắng transfer số tiền không hợp lệ (<=0): {amount} cho {recipient.id}.")
@@ -46,7 +46,6 @@ class TransferCommandCog(commands.Cog, name="Transfer Command"):
 
         economy_data = load_economy_data()
         
-        # Lấy profile toàn cục của người gửi
         sender_profile = get_or_create_global_user_profile(economy_data, sender.id)
         original_sender_global_balance = sender_profile.get("global_balance", 0)
 
@@ -54,10 +53,14 @@ class TransferCommandCog(commands.Cog, name="Transfer Command"):
             logger.warning(f"User {sender.id} không đủ tiền trong Ví Toàn Cục để transfer {amount} cho {recipient.id}. "
                            f"Số dư ví: {original_sender_global_balance}")
             await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền trong Ví Toàn Cục! {ICON_MONEY_BAG} Ví của bạn: **{original_sender_global_balance:,}** {CURRENCY_SYMBOL}.")
-            save_economy_data(economy_data) # Lưu nếu get_or_create_global_user_profile có tạo mới sender
+            # Không save_economy_data ở đây vì sender_profile có thể vừa được tạo/cập nhật key bởi get_or_create...
+            # nhưng giao dịch không thành công. Chỉ save khi giao dịch thành công.
+            # Tuy nhiên, nếu get_or_create... đã thay đổi economy_data (ví dụ tạo user mới),
+            # thì việc không save ở đây có thể làm mất user đó nếu bot tắt ngay.
+            # Để an toàn hơn, có thể save nếu sender_profile được tạo mới, hoặc luôn save.
+            # Hiện tại: không save nếu giao dịch thất bại để tránh ghi thừa.
             return 
         
-        # Lấy profile toàn cục của người nhận
         recipient_profile = get_or_create_global_user_profile(economy_data, recipient.id)
         original_recipient_global_balance = recipient_profile.get("global_balance", 0)
         
@@ -71,7 +74,7 @@ class TransferCommandCog(commands.Cog, name="Transfer Command"):
                     f"cho {recipient.display_name} ({recipient.id}). "
                     f"Sender global_balance: {original_sender_global_balance:,} -> {sender_profile['global_balance']:,}. "
                     f"Recipient global_balance: {original_recipient_global_balance:,} -> {recipient_profile['global_balance']:,}. "
-                    f"(Lệnh gọi từ guild: '{guild_name_for_log}' ({guild_id_for_log}))")
+                    f"(Lệnh gọi từ context guild: '{guild_name_for_log}' ({guild_id_for_log}))")
         
         await try_send(ctx, content=f"{ICON_GIFT} {sender.mention} đã chuyển **{amount:,}** {CURRENCY_SYMBOL} vào Ví Toàn Cục cho {recipient.mention}!")
         logger.debug(f"Lệnh 'transfer' từ {sender.name} đến {recipient.name} đã xử lý xong.")
