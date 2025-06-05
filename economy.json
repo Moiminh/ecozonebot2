@@ -3,8 +3,8 @@
   "guild_configs": {},
   "global_shop_stock": {},
   "bot_metadata": {
-    "data_structure_version": "hybrid_v2_level_shop_pending_db_rewrite",
-    "notes": "Ecoworld initial data structure for global user data, per-server banks, global shop stock, and global/local levels. Awaiting database.py rewrite.",
+    "data_structure_version": "hybrid_v2.1_level_shop_global_per_server_bank",
+    "notes": "Ecoworld: Global user data (wallet, inventory, cooldowns, global level), per-server bank accounts, per-server local level/inventory, global shop stock.",
     "last_global_event_timestamp": 0,
     "total_commands_processed_global": 0
   }
