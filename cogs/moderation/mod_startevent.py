@@ -1,4 +1,4 @@
-# bot/cogs/moderation/event_cmds.py
+# bot/cogs/moderation/mod_startevent.py
 import nextcord
 from nextcord.ext import commands
 from datetime import datetime, timedelta, timezone # Đã import
