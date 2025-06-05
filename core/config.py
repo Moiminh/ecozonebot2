@@ -1,10 +1,22 @@
 # bot/core/config.py
 
 # --- Bot Configuration ---
-COMMAND_PREFIX = '!'               # <<< ĐẢM BẢO DÒNG NÀY TỒN TẠI VÀ ĐÚNG
+COMMAND_PREFIX = '!'
 ECONOMY_FILE = 'economy.json' 
-MODERATORS_FILE = 'moderators.json'
+MODERATORS_FILE = 'moderators.json' # File chứa danh sách ID moderator (dạng JSON)
 CURRENCY_SYMBOL = "💰" 
+
+# --- DANH SÁCH ID CỦA MODERATOR/STAR ---
+# Đây là nơi bạn định nghĩa danh sách các User ID có quyền moderator.
+# Thay thế các số ví dụ bằng User ID Discord thực tế.
+MODERATOR_USER_IDS = [
+    123456789012345678,  # Ví dụ: ID của Moderator 1
+    987654321098765432,  # Ví dụ: ID của Moderator 2
+    # Thêm các User ID khác vào đây nếu cần, mỗi ID là một số nguyên
+    # Ví dụ: nếu bạn muốn ID của chính mình làm moderator, hãy thêm ID của bạn vào đây.
+    # Để trống danh sách này nếu bạn chưa có moderator nào cụ thể: MODERATOR_USER_IDS = []
+]
+# ------------------------------------
 
 # --- Cooldowns (seconds) ---
 WORK_COOLDOWN = 3600
@@ -36,27 +48,19 @@ SHOP_ITEMS = {
 
 # --- Bare Command Mapping ---
 # Ánh xạ các lệnh không cần prefix (lệnh tắt) tới tên lệnh gốc
-BARE_COMMAND_MAP = { # <<< ĐẢM BẢO BIẾN NÀY CŨNG ĐƯỢC ĐỊNH NGHĨA ĐÚNG
+BARE_COMMAND_MAP = {
     # Tài Khoản & Tổng Quan
-    "balance": "balance",
-    "bal": "balance",
+    "balance": "balance", "bal": "balance",
     "bank": "bank",
-    "deposit": "deposit",
-    "dep": "deposit",
-    "withdraw": "withdraw",
-    "wd": "withdraw",
-    "transfer": "transfer",
-    "tf": "transfer",
-    "leaderboard": "leaderboard",
-    "lb": "leaderboard",
-    "richest": "richest",
-    "rich": "richest",
-    "inventory": "inventory",
-    "inv": "inventory",
+    "deposit": "deposit", "dep": "deposit",
+    "withdraw": "withdraw", "wd": "withdraw",
+    "transfer": "transfer", "tf": "transfer",
+    "leaderboard": "leaderboard", "lb": "leaderboard",
+    "richest": "richest", "rich": "richest",
+    "inventory": "inventory", "inv": "inventory",
 
     # Kiếm Tiền & Cơ Hội
-    "work": "work",
-    "w": "work",
+    "work": "work", "w": "work",
     "daily": "daily",
     "beg": "beg",
     "crime": "crime",
@@ -64,16 +68,12 @@ BARE_COMMAND_MAP = { # <<< ĐẢM BẢO BIẾN NÀY CŨNG ĐƯỢC ĐỊNH NGHĨ
     "rob": "rob",
 
     # Giải Trí & Cờ Bạc
-    "slots": "slots",
-    "sl": "slots",
-    "coinflip": "coinflip",
-    "cf": "coinflip",
-    "dice": "dice",
-    "roll": "dice", # Giữ lại "roll" nếu bạn muốn nó cũng là lệnh tắt cho dice
+    "slots": "slots", "sl": "slots",
+    "coinflip": "coinflip", "cf": "coinflip",
+    "dice": "dice", "roll": "dice",
 
     # Cửa Hàng Vật Phẩm
-    "shop": "shop",
-    "store": "shop", # Giữ lại "store" nếu bạn muốn nó cũng là lệnh tắt cho shop
+    "shop": "shop", "store": "shop",
     "buy": "buy",
     "sell": "sell",
 }
