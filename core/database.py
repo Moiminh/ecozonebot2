@@ -1,21 +1,17 @@
 # bot/core/database.py
 import json
 import os
-import logging # Thêm logging để ghi lại các vấn đề về file nếu có
+import logging
 
-# Import toàn bộ module config để truy cập các hằng số qua tiền tố 'config.'
-from . import config 
-# Hoặc, bạn có thể import trực tiếp các biến cần thiết:
-# from .config import ECONOMY_FILE, MODERATORS_FILE 
-# Nếu chọn cách trên, bạn sẽ dùng trực tiếp ECONOMY_FILE, MODERATORS_FILE trong code dưới.
-# Hiện tại, code dưới đây được viết theo cách dùng 'config.ECONOMY_FILE' và 'config.MODERATORS_FILE'.
+# Import các thành phần cần thiết từ các file khác trong 'core'
+from . import config # Giả sử bạn import config theo cách này
 
 logger = logging.getLogger(__name__) # Logger cho module database
 
-# --- JSON Data System (cho economy.json) ---
+# --- load_data() và save_data() giữ nguyên như trước ---
 def load_data():
-    """Tải dữ liệu kinh tế từ file ECONOMY_FILE."""
-    path_to_file = config.ECONOMY_FILE # Sử dụng config.ECONOMY_FILE
+    # ... (code của hàm load_data không thay đổi) ...
+    path_to_file = config.ECONOMY_FILE 
     logger.debug(f"Đang tải dữ liệu từ: {path_to_file}")
     if not os.path.exists(path_to_file):
         logger.warning(f"File {path_to_file} không tồn tại. Tạo file mới với dữ liệu rỗng.")
@@ -44,8 +40,8 @@ def load_data():
         return {}
 
 def save_data(data):
-    """Lưu dữ liệu kinh tế vào file ECONOMY_FILE."""
-    path_to_file = config.ECONOMY_FILE # Sử dụng config.ECONOMY_FILE
+    # ... (code của hàm save_data không thay đổi) ...
+    path_to_file = config.ECONOMY_FILE 
     logger.debug(f"Đang lưu dữ liệu vào: {path_to_file}")
     try:
         with open(path_to_file, 'w', encoding='utf-8') as f:
@@ -54,156 +50,41 @@ def save_data(data):
     except Exception as e:
         logger.error(f"Lỗi khi lưu dữ liệu vào {path_to_file}: {e}", exc_info=True)
 
+# --- HÀM get_guild_config ĐƯỢC CẬP NHẬT ---
 def get_guild_config(guild_id):
-    # ... (Hàm này giữ nguyên logic như trước, nhưng sử dụng logger) ...
     data = load_data()
     guild_id_str = str(guild_id)
+    
+    # Trường hợp guild chưa có trong dữ liệu
     if guild_id_str not in data:
         logger.info(f"Khởi tạo config mặc định cho guild ID mới: {guild_id_str}")
-        data[guild_id_str] = {"config": {"bare_command_active_channels": [], "muted_channels": []}}
+        data[guild_id_str] = {
+            "config": {
+                "bare_command_active_channels": [],
+                "muted_channels": [],
+                "active_events": {}  # << Đảm bảo active_events được khởi tạo
+            }
+            # Không cần khởi tạo user data ở đây, check_user sẽ làm việc đó
+        }
+        # Lưu ý: get_guild_config thường chỉ đọc và chuẩn bị dữ liệu.
+        # Việc lưu thực sự (save_data) thường do các hàm khác gọi sau khi có thay đổi.
+        
+    # Trường hợp guild đã có nhưng thiếu mục "config" hoặc "config" không phải là dictionary
     elif "config" not in data[guild_id_str] or not isinstance(data[guild_id_str]["config"], dict):
         logger.warning(f"Config cho guild ID {guild_id_str} không hợp lệ hoặc thiếu. Khởi tạo lại.")
-        data[guild_id_str]["config"] = {"bare_command_active_channels": [], "muted_channels": []}
+        data[guild_id_str]["config"] = {
+            "bare_command_active_channels": [],
+            "muted_channels": [],
+            "active_events": {}  # << Đảm bảo active_events được khởi tạo lại
+        }
+    # Trường hợp guild đã có "config" hợp lệ
     else:
+        # Sử dụng setdefault để đảm bảo các key cơ bản tồn tại mà không ghi đè nếu đã có
         data[guild_id_str]["config"].setdefault("bare_command_active_channels", [])
         data[guild_id_str]["config"].setdefault("muted_channels", [])
-    return data[guild_id_str]["config"].copy()
+        data[guild_id_str]["config"].setdefault("active_events", {})  # << ĐẢM BẢO active_events LUÔN TỒN TẠI
 
+    return data[guild_id_str]["config"].copy() # Trả về bản copy của config
 
-def save_guild_config(guild_id, config_data_to_save):
-    # ... (Hàm này giữ nguyên logic như trước, nhưng sử dụng logger) ...
-    data = load_data()
-    guild_id_str = str(guild_id)
-    logger.info(f"Đang lưu guild config cho guild ID {guild_id_str}. Dữ liệu mới: {config_data_to_save}")
-    if guild_id_str not in data: 
-        data[guild_id_str] = {}
-    data[guild_id_str]["config"] = config_data_to_save 
-    save_data(data)
-    logger.info(f"Đã lưu guild config cho guild ID {guild_id_str}.")
-
-
-def check_user(data, guild_id, user_id):
-    # ... (Hàm này giữ nguyên logic như trước, nhưng sử dụng logger) ...
-    guild_id_str, user_id_str = str(guild_id), str(user_id)
-    # Đảm bảo guild config tồn tại
-    if guild_id_str not in data:
-        data[guild_id_str] = {"config": {"bare_command_active_channels": [], "muted_channels": []}}
-        logger.debug(f"check_user: Đã tạo mục guild mới cho {guild_id_str} vì chưa tồn tại.")
-    elif "config" not in data[guild_id_str] or not isinstance(data[guild_id_str]["config"], dict):
-        data[guild_id_str]["config"] = {"bare_command_active_channels": [], "muted_channels": []}
-        logger.debug(f"check_user: Đã reset config cho {guild_id_str} do không hợp lệ.")
-    else:
-        data[guild_id_str]["config"].setdefault("bare_command_active_channels", [])
-        data[guild_id_str]["config"].setdefault("muted_channels", [])
-
-    defaults_user = {
-        "balance": 100, "bank_balance": 0, "inventory": [],
-        "last_work": 0, "last_daily": 0, "last_beg": 0, "last_rob": 0,
-        "last_crime": 0, "last_fish": 0, "last_slots": 0, "last_cf": 0, "last_dice": 0
-    }
-    if user_id_str != "config":
-        if user_id_str not in data[guild_id_str]:
-            data[guild_id_str][user_id_str] = defaults_user.copy()
-            logger.info(f"check_user: User mới {user_id_str} trong guild {guild_id_str} đã được khởi tạo với dữ liệu mặc định.")
-        elif not isinstance(data[guild_id_str][user_id_str], dict):
-             data[guild_id_str][user_id_str] = defaults_user.copy()
-             logger.warning(f"check_user: Dữ liệu của user {user_id_str} trong guild {guild_id_str} không phải dict, đã reset về mặc định.")
-        else: 
-            updated = False
-            for key, default_value in defaults_user.items():
-                if data[guild_id_str][user_id_str].setdefault(key, default_value) == default_value and key not in data[guild_id_str][user_id_str]:
-                    # Trường hợp setdefault thêm key mới
-                    updated = True
-            if updated:
-                 logger.debug(f"check_user: Đã cập nhật các key còn thiếu cho user {user_id_str} trong guild {guild_id_str}.")
-    return data
-
-def get_user_data(guild_id, user_id):
-    # ... (Hàm này giữ nguyên logic như trước) ...
-    data = load_data()
-    data = check_user(data, guild_id, user_id)
-    return data
-
-# ========== CÁC HÀM MỚI CHO QUẢN LÝ MODERATOR (Giữ nguyên logic, thêm logger) ==========
-
-def load_moderator_ids() -> list:
-    """Tải danh sách User ID của moderator từ file MODERATORS_FILE."""
-    path_to_file = config.MODERATORS_FILE # Sử dụng config.MODERATORS_FILE
-    logger.debug(f"Đang tải danh sách moderator từ: {path_to_file}")
-    try:
-        if not os.path.exists(path_to_file):
-            logger.warning(f"File moderator {path_to_file} không tồn tại. Tạo file mới với danh sách rỗng.")
-            with open(path_to_file, 'w', encoding='utf-8') as f:
-                json.dump({"moderator_ids": []}, f, indent=4)
-            return []
-        
-        with open(path_to_file, 'r', encoding='utf-8') as f:
-            content = f.read()
-            if not content.strip():
-                logger.warning(f"File moderator {path_to_file} trống. Ghi lại cấu trúc mặc định.")
-                with open(path_to_file, 'w', encoding='utf-8') as wf:
-                    json.dump({"moderator_ids": []}, wf, indent=4)
-                return []
-            data = json.loads(content)
-            ids = data.get("moderator_ids", [])
-            logger.debug(f"Danh sách moderator đã tải thành công từ {path_to_file}. Số lượng: {len(ids)}")
-            return ids
-    except json.JSONDecodeError:
-        logger.error(f"LỖI JSONDecodeError: File {path_to_file} bị lỗi JSON. Trả về danh sách moderator rỗng.", exc_info=True)
-        try:
-            with open(path_to_file, 'w', encoding='utf-8') as f:
-                json.dump({"moderator_ids": []}, f, indent=4)
-        except Exception as e_write:
-            logger.error(f"Không thể tạo lại file {path_to_file} sau lỗi JSONDecodeError: {e_write}", exc_info=True)
-        return []
-    except Exception as e:
-        logger.error(f"Lỗi không xác định khi tải moderator_ids từ {path_to_file}: {e}", exc_info=True)
-        return []
-
-def save_moderator_ids(ids: list) -> bool:
-    """Lưu danh sách User ID của moderator vào file MODERATORS_FILE."""
-    path_to_file = config.MODERATORS_FILE # Sử dụng config.MODERATORS_FILE
-    logger.debug(f"Đang lưu danh sách moderator vào: {path_to_file}. Dữ liệu: {ids}")
-    try:
-        cleaned_ids = list(set(int(mod_id) for mod_id in ids if str(mod_id).isdigit()))
-        with open(path_to_file, 'w', encoding='utf-8') as f:
-            json.dump({"moderator_ids": cleaned_ids}, f, indent=4)
-        logger.info(f"Danh sách moderator đã được lưu thành công vào {path_to_file}. Số lượng: {len(cleaned_ids)}")
-        return True
-    except Exception as e:
-        logger.error(f"Lỗi khi lưu moderator_ids vào {path_to_file}: {e}", exc_info=True)
-        return False
-
-def add_moderator_id(user_id: int) -> bool:
-    """Thêm một User ID vào danh sách moderator và lưu lại."""
-    try:
-        mod_id_to_add = int(user_id)
-    except ValueError:
-        logger.error(f"Lỗi: User ID '{user_id}' cung cấp cho add_moderator_id không phải là số.")
-        return False
-
-    current_ids = load_moderator_ids()
-    if mod_id_to_add not in current_ids:
-        logger.info(f"Thêm moderator ID: {mod_id_to_add} vào danh sách.")
-        current_ids.append(mod_id_to_add)
-        return save_moderator_ids(current_ids)
-    else:
-        logger.info(f"User ID {mod_id_to_add} đã có trong danh sách moderator. Không thêm.")
-        return True 
-
-def remove_moderator_id(user_id: int) -> bool:
-    """Xóa một User ID khỏi danh sách moderator và lưu lại."""
-    try:
-        mod_id_to_remove = int(user_id)
-    except ValueError:
-        logger.error(f"Lỗi: User ID '{user_id}' cung cấp cho remove_moderator_id không phải là số.")
-        return False
-        
-    current_ids = load_moderator_ids()
-    if mod_id_to_remove in current_ids:
-        logger.info(f"Xóa moderator ID: {mod_id_to_remove} khỏi danh sách.")
-        current_ids.remove(mod_id_to_remove)
-        return save_moderator_ids(current_ids)
-    else:
-        logger.warning(f"User ID {mod_id_to_remove} không tìm thấy trong danh sách moderator để xóa.")
-        return False
+# --- Các hàm còn lại (save_guild_config, check_user, get_user_data, load_moderator_ids, etc.) ---
+# --- giữ nguyên như phiên bản bạn đã cung cấp trước đó, không cần thay đổi cho Bước 1 này. ---
