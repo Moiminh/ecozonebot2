@@ -1,10 +1,6 @@
 # bot/core/config.py
-# from datetime import timedelta # Hiện tại không dùng timedelta trực tiếp ở đây, có thể bỏ nếu không cần
 
 # --- Bot Configuration ---
-# BOT_TOKEN hiện được quản lý thông qua file .env và được load trong main.py.
-# Không cần định nghĩa BOT_TOKEN ở đây.
-
 COMMAND_PREFIX = '!'
 ECONOMY_FILE = 'economy.json' 
 CURRENCY_SYMBOL = "💰" 
@@ -17,7 +13,7 @@ ROB_COOLDOWN = 7200
 CRIME_COOLDOWN = 1800
 FISH_COOLDOWN = 600
 SLOTS_COOLDOWN = 5
-CF_COOLDOWN = 5       # Biến này đã được định nghĩa ở đây, không cần import
+CF_COOLDOWN = 5
 DICE_COOLDOWN = 5
 
 # --- Other Configurations ---
@@ -37,27 +33,43 @@ SHOP_ITEMS = {
     "fishing_rod": {"price": 500, "description": "Cần câu tốt để tăng cơ hội bắt được cá xịn.", "type": "item", "sell_price": 200},
 }
 
-# --- Bare Command Mapping ---
-# Ánh xạ các lệnh không cần prefix (lệnh tắt) tới tên lệnh gốc
+# --- Bare Command Mapping (CẬP NHẬT THEO YÊU CẦU CỦA BẠN) ---
 BARE_COMMAND_MAP = {
-    "slots": "slots", "sl": "slots",
+    # Tài Khoản & Tổng Quan
+    "balance": "balance",
+    "bal": "balance",
+    "bank": "bank",
+    "deposit": "deposit",
     "dep": "deposit",
-    "cf": "coinflip",
-    "bal": "balance", "$": "balance", "cash": "balance", "money": "balance", "bl": "balance",
-    "work": "work", "w": "work",
-    "daily": "daily", "d": "daily",
-    "inv": "inventory", "items": "inventory", "i": "inventory",
-    "lb": "leaderboard", "top": "leaderboard",
-    "richest": "richest", "rich": "richest",
-    "beg": "beg", "b": "beg",
+    "withdraw": "withdraw",
     "wd": "withdraw",
-    "rob": "rob", "steal": "rob",
+    "transfer": "transfer",
+    "tf": "transfer",        # Lệnh tắt mới cho transfer
+    "leaderboard": "leaderboard",
+    "lb": "leaderboard",
+    "richest": "richest",
+    "rich": "richest",
+    "inventory": "inventory",
+    "inv": "inventory",
+
+    # Kiếm Tiền & Cơ Hội
+    "work": "work",
+    "w": "work",
+    "daily": "daily",        # Giữ lại daily, bỏ "d" nếu bạn muốn
+    "beg": "beg",            # Giữ lại beg, bỏ "b" nếu bạn muốn
     "crime": "crime",
     "fish": "fish",
-    "shop": "shop", "store": "shop",
-    "bank": "bank",
+    "rob": "rob",            # Giữ lại rob, bỏ "steal" nếu bạn muốn
+
+    # Giải Trí & Cờ Bạc
+    "slots": "slots",
+    "sl": "slots",
+    "coinflip": "coinflip",
+    "cf": "coinflip",
+    "dice": "dice",          # Giữ lại dice, bỏ "roll" nếu bạn muốn
+
+    # Cửa Hàng Vật Phẩm
+    "shop": "shop",          # Giữ lại shop, bỏ "store" nếu bạn muốn
     "buy": "buy",
     "sell": "sell",
-    "give": "transfer",
-    "pay": "transfer"
 }
