@@ -1,45 +1,44 @@
 {
-    "1373168665675173970": {
-        "config": {
-            "bare_command_active_channels": [
-                1378996497961713755
-            ],
-            "muted_channels": []
-        },
-        "1370417047070048276": {
-            "balance": 1061449,
-            "bank_balance": 0,
-            "inventory": [
-                "laptop",
-                "laptop",
-                "laptop",
-                "laptop",
-                "laptop",
-                "laptop"
-            ],
-            "last_work": 1748969600.040055,
-            "last_daily": 1748974120.672394,
-            "last_beg": 1749000638.684078,
-            "last_rob": 1749000943.327219,
-            "last_crime": 0,
-            "last_fish": 0,
-            "last_slots": 1749001280.437117,
-            "last_cf": 1749001002.624278,
-            "last_dice": 1748974601.199166
-        },
-        "1354746718733733910": {
-            "balance": 11098,
-            "bank_balance": 0,
-            "inventory": [],
-            "last_work": 0,
-            "last_daily": 0,
-            "last_beg": 0,
-            "last_rob": 0,
-            "last_crime": 0,
-            "last_fish": 0,
-            "last_slots": 0,
-            "last_cf": 0,
-            "last_dice": 0
-        }
+  "users": { // Mục chứa dữ liệu toàn cục của tất cả người dùng
+    "USER_ID_1": { // Key là User ID (dạng chuỗi)
+      "global_balance": 0,             // Ví tiền toàn cục
+      "inventory_global": [],          // Túi đồ toàn cục
+      "bank_accounts": {               // Ngân hàng theo từng server của user này
+        "GUILD_ID_A": 0,             // Số dư ngân hàng ở Server A
+        "GUILD_ID_B": 0              // Số dư ngân hàng ở Server B
+                                     // Sẽ tự động thêm GUILD_ID_C khi user dùng bank ở server C
+      },
+      // --- Cooldowns toàn cục ---
+      "last_work_global": 0,
+      "last_daily_global": 0,
+      "last_beg_global": 0,
+      "last_rob_global": 0,
+      "last_crime_global": 0,
+      "last_fish_global": 0,
+      "last_slots_global": 0,
+      "last_cf_global": 0,
+      "last_dice_global": 0
+      // --- Có thể thêm các trường dữ liệu toàn cục khác của user ở đây ---
+      // "preferred_language": "vi" // Ví dụ cho tính năng ngôn ngữ tùy chỉnh sau này
+    },
+    "USER_ID_2": {
+      // ... dữ liệu tương tự cho user khác ...
     }
+  },
+  "guild_configs": { // Mục chứa cấu hình riêng của từng server (giữ nguyên như hiện tại)
+    "GUILD_ID_A": {
+      "bare_command_active_channels": [],
+      "muted_channels": []
+      // --- Có thể thêm các cài đặt kinh tế riêng của server ở đây nếu muốn ---
+      // ví dụ: "server_tax_rate": 0.01, 
+      //        "server_bank_interest_rate": 0.005 
+    },
+    "GUILD_ID_B": {
+      // ...
+    }
+  },
+  "bot_metadata": { // (Tùy chọn) Nơi lưu các thông tin chung của bot không thuộc user hay guild cụ thể
+      "last_global_event_timestamp": 0,
+      "total_commands_processed": 10000 
+  }
 }
