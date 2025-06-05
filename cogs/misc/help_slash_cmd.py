@@ -4,15 +4,12 @@ from nextcord.ext import commands
 import traceback 
 import logging 
 
-# Import các thành phần cần thiết từ package 'core'
-# from core.utils import try_send # Hiện không dùng trực tiếp trong file này nữa
 from core.config import (
     COMMAND_PREFIX, 
     WORK_COOLDOWN, DAILY_COOLDOWN, BEG_COOLDOWN, ROB_COOLDOWN, 
     CRIME_COOLDOWN, FISH_COOLDOWN, SLOTS_COOLDOWN, CF_COOLDOWN, DICE_COOLDOWN,
     BARE_COMMAND_MAP 
 )
-# Đảm bảo bạn đã import ĐÚNG và ĐỦ các icon bạn sử dụng từ core.icons
 from core.icons import ( 
     ICON_HELP, ICON_COMMAND_DETAIL, ICON_BANK, ICON_MONEY_BAG, 
     ICON_GAME, ICON_SHOP, ICON_ADMIN, ICON_INFO, ICON_WARNING, ICON_ERROR 
@@ -20,18 +17,16 @@ from core.icons import (
 
 logger = logging.getLogger(__name__)
 
-# Đổi tên class Cog cho phù hợp với tên lệnh mới /menu
 class MenuSlashCommandCog(commands.Cog, name="MenuSlashCommandCog"): 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info(f"MenuSlashCommandCog initialized (command is /menu).")
+        logger.debug(f"MenuSlashCommandCog initialized (command is /menu).") # Đổi sang DEBUG
 
     async def _send_general_help_embed(self, interaction: nextcord.Interaction):
-        """Xây dựng và gửi Embed trợ giúp chung (menu)."""
-        # Sử dụng interaction.application_command.name để lấy tên lệnh slash hiện tại (sẽ là "menu")
         current_slash_command_name = interaction.application_command.name 
         logger.debug(f"Entering _send_general_help_embed for {interaction.user.name} (for /{current_slash_command_name})")
         try:
+            # ... (logic tạo Embed menu chung giữ nguyên) ...
             prefix = COMMAND_PREFIX
             embed = nextcord.Embed(
                 title=f"{ICON_HELP} Menu Trợ Giúp - Bot Kinh Tế",
@@ -41,30 +36,17 @@ class MenuSlashCommandCog(commands.Cog, name="MenuSlashCommandCog"):
                     f"*Lưu ý: Hầu hết các lệnh prefix đều có tên gọi tắt (alias) được liệt kê trong chi tiết lệnh.*\n"
                     f"Quản trị viên có thể dùng `{prefix}auto` để bật/tắt lệnh không cần prefix trong một kênh."
                 ),
-                color=nextcord.Color.dark_theme(), # Giả sử bạn có màu này, hoặc dùng nextcord.Color.blue()
+                color=nextcord.Color.dark_theme(),
             )
-            
-            embed.add_field(name=f"{ICON_BANK} Tài Khoản & Tổng Quan",
-                            value="`balance` `bank` `deposit` `withdraw` `transfer` `leaderboard` `richest` `inventory`",
-                            inline=False)
-            embed.add_field(name=f"{ICON_MONEY_BAG} Kiếm Tiền & Cơ Hội",
-                            value="`work` `daily` `beg` `crime` `fish` `rob`",
-                            inline=False)
-            embed.add_field(name=f"{ICON_GAME} Giải Trí & Cờ Bạc",
-                            value="`slots` `coinflip` `dice`",
-                            inline=False)
-            embed.add_field(name=f"{ICON_SHOP} Cửa Hàng Vật Phẩm",
-                            value="`shop` `buy` `sell`",
-                            inline=False)
-            embed.add_field(name=f"{ICON_ADMIN} Quản Trị Server (Lệnh Prefix)",
-                            value=f"`{prefix}addmoney` `{prefix}removemoney` `{prefix}auto` `{prefix}mutebot` `{prefix}unmutebot`",
-                            inline=False)
-            
+            embed.add_field(name=f"{ICON_BANK} Tài Khoản & Tổng Quan", value="`balance` `bank` `deposit` `withdraw` `transfer` `leaderboard` `richest` `inventory`", inline=False)
+            embed.add_field(name=f"{ICON_MONEY_BAG} Kiếm Tiền & Cơ Hội", value="`work` `daily` `beg` `crime` `fish` `rob`", inline=False)
+            embed.add_field(name=f"{ICON_GAME} Giải Trí & Cờ Bạc", value="`slots` `coinflip` `dice`", inline=False)
+            embed.add_field(name=f"{ICON_SHOP} Cửa Hàng Vật Phẩm", value="`shop` `buy` `sell`", inline=False)
+            embed.add_field(name=f"{ICON_ADMIN} Quản Trị Server (Lệnh Prefix)", value=f"`{prefix}addmoney` `{prefix}removemoney` `{prefix}auto` `{prefix}mutebot` `{prefix}unmutebot`", inline=False)
             embed.set_footer(text=f"Bot được phát triển bởi MinhBeo8. Gõ /{current_slash_command_name} lệnh <tên_lệnh_prefix> để biết thêm chi tiết.")
             
             await interaction.followup.send(embed=embed, ephemeral=True)
-            logger.debug(f"General help (menu) followup sent successfully to {interaction.user.name} (for /{current_slash_command_name}).")
-
+            logger.debug(f"General help followup sent successfully to {interaction.user.name} (for /{current_slash_command_name}).")
         except Exception as e:
             logger.error(f"Lỗi trong _send_general_help_embed (for /{current_slash_command_name}):", exc_info=True)
             try:
@@ -77,28 +59,24 @@ class MenuSlashCommandCog(commands.Cog, name="MenuSlashCommandCog"):
         current_slash_command_name = interaction.application_command.name
         logger.debug(f"Entering _send_specific_command_help_embed for command: '{command_name_input}' by {interaction.user.name} (for /{current_slash_command_name})")
         try:
+            # ... (logic tìm command_obj và tạo Embed chi tiết giữ nguyên) ...
             prefix = COMMAND_PREFIX
             cmd_name_to_find_initially = command_name_input.lower().lstrip(prefix) 
             command_obj = self.bot.get_command(cmd_name_to_find_initially)
-            
             if not command_obj:
                 logger.debug(f"Command '{cmd_name_to_find_initially}' not found directly. Checking BARE_COMMAND_MAP...")
                 actual_command_name_from_bare_map = BARE_COMMAND_MAP.get(cmd_name_to_find_initially)
                 if actual_command_name_from_bare_map:
                     logger.debug(f"Bare command alias '{cmd_name_to_find_initially}' maps to '{actual_command_name_from_bare_map}'. Trying to get this command.")
                     command_obj = self.bot.get_command(actual_command_name_from_bare_map)
-            
             if not command_obj:
                 logger.warning(f"Command '{cmd_name_to_find_initially}' (and its potential bare map) not found for specific help requested by {interaction.user.name} (for /{current_slash_command_name}).")
                 await interaction.followup.send(content=f"{ICON_WARNING} Không tìm thấy lệnh prefix nào có tên là `{command_name_input}`. Hãy chắc chắn bạn nhập đúng tên lệnh (ví dụ: `work`, `balance` hoặc tên gọi tắt của nó).", ephemeral=True)
                 return
-
             logger.debug(f"Found command: {command_obj.name} for {interaction.user.name}. Building embed...")
             embed = nextcord.Embed(title=f"{ICON_COMMAND_DETAIL} Chi tiết lệnh: {prefix}{command_obj.name}", color=nextcord.Color.green())
-            
             help_text = command_obj.help 
-            if not help_text:
-                help_text = command_obj.short_doc or "Lệnh này chưa có mô tả chi tiết." 
+            if not help_text: help_text = command_obj.short_doc or "Lệnh này chưa có mô tả chi tiết." 
             embed.description = help_text
             usage = f"`{prefix}{command_obj.name} {command_obj.signature}`".strip()
             embed.add_field(name="📝 Cách sử dụng", value=usage, inline=False)
@@ -107,11 +85,10 @@ class MenuSlashCommandCog(commands.Cog, name="MenuSlashCommandCog"):
                 embed.add_field(name="🏷️ Tên gọi khác (Aliases)", value=aliases_str, inline=False)
             else:
                 embed.add_field(name="🏷️ Tên gọi khác (Aliases)", value="Lệnh này không có tên gọi tắt.", inline=False)
-
             manual_cooldown_commands = {
-                "work": WORK_COOLDOWN, "daily": DAILY_COOLDOWN, "beg": BEG_COOLDOWN,
-                "rob": ROB_COOLDOWN, "crime": CRIME_COOLDOWN, "fish": FISH_COOLDOWN,
-                "slots": SLOTS_COOLDOWN, "coinflip": CF_COOLDOWN, "dice": DICE_COOLDOWN
+                "work": WORK_COOLDOWN, "daily": DAILY_COOLDOWN, "beg": BEG_COOLDOWN, "rob": ROB_COOLDOWN, 
+                "crime": CRIME_COOLDOWN, "fish": FISH_COOLDOWN, "slots": SLOTS_COOLDOWN, 
+                "coinflip": CF_COOLDOWN, "dice": DICE_COOLDOWN
             }
             if command_obj.name in manual_cooldown_commands:
                 cd_seconds = manual_cooldown_commands[command_obj.name]
@@ -134,9 +111,8 @@ class MenuSlashCommandCog(commands.Cog, name="MenuSlashCommandCog"):
             except Exception as followup_e:
                 logger.error(f"Không thể gửi tin nhắn lỗi followup cho specific help (for /{current_slash_command_name}): {followup_e}", exc_info=True)
 
-    # === ĐỔI TÊN LỆNH SLASH THÀNH /menu ===
     @nextcord.slash_command(name="menu", description=f"{ICON_INFO} Hiển thị menu trợ giúp và thông tin lệnh của bot.")
-    async def menu_slash_command(self, # Đổi tên hàm Python cho nhất quán (tùy chọn)
+    async def menu_slash_command(self, 
                                  interaction: nextcord.Interaction,
                                  command_name: str = nextcord.SlashOption(
                                      name="lệnh", 
@@ -144,11 +120,14 @@ class MenuSlashCommandCog(commands.Cog, name="MenuSlashCommandCog"):
                                      required=False,
                                      default=None
                                  )):
-        """Hiển thị danh sách các lệnh hoặc thông tin chi tiết về một lệnh (prefix) cụ thể."""
+        actual_slash_command_name = interaction.application_command.name 
         
-        actual_slash_command_name = interaction.application_command.name # Sẽ là "menu"
-        logger.debug(f"/{actual_slash_command_name} slash command invoked by {interaction.user.name} (ID: {interaction.user.id}). Argument 'lệnh': '{command_name}'")
+        # --- LOG INFO KHI LỆNH /menu ĐƯỢC GỌI ---
+        log_message_args = f" (lệnh cụ thể: '{command_name}')" if command_name else " (menu chung)"
+        logger.info(f"User {interaction.user.display_name} ({interaction.user.id}) đã sử dụng /{actual_slash_command_name}{log_message_args}.")
+        # ------------------------------------------
         
+        logger.debug(f"/{actual_slash_command_name} invoked by {interaction.user.name}. Argument 'lệnh': '{command_name}'")
         try:
             if not interaction.response.is_done():
                 await interaction.response.defer(ephemeral=True)
@@ -171,4 +150,4 @@ class MenuSlashCommandCog(commands.Cog, name="MenuSlashCommandCog"):
                 logger.error(f"Không thể gửi thông báo lỗi cuối cùng cho /{actual_slash_command_name}: {final_followup_e}", exc_info=True)
 
 def setup(bot: commands.Bot):
-    bot.add_cog(MenuSlashCommandCog(bot)) # Nhớ cập nhật tên class Cog ở đây
+    bot.add_cog(MenuSlashCommandCog(bot))
