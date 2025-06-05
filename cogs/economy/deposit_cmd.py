@@ -24,14 +24,20 @@ class DepositCommandCog(commands.Cog, name="Deposit Command"):
     @commands.command(name='deposit', aliases=['dep'])
     async def deposit(self, ctx: commands.Context, amount_str: str):
         author_id = ctx.author.id
-        guild_id = ctx.guild.id 
-        
+        # Lệnh này phải được dùng trong guild để xác định ngân hàng server nào
+        if not ctx.guild:
+            logger.warning(f"Lệnh 'deposit' được gọi trong DM bởi {ctx.author.name}. Lệnh này cần được gọi trong server.")
+            await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server để gửi tiền vào ngân hàng của server đó.")
+            return
+        guild_id = ctx.guild.id
+
         logger.debug(f"Lệnh 'deposit' được gọi bởi {ctx.author.name} ({author_id}) với amount_str='{amount_str}' tại guild '{ctx.guild.name}' ({guild_id}).")
         
         economy_data = load_economy_data()
         user_profile = get_or_create_global_user_profile(economy_data, author_id)
         
         original_global_balance = user_profile.get("global_balance", 0)
+        # get_server_bank_balance sẽ trả về 0 nếu user_profile["bank_accounts"] chưa có key cho guild_id này
         original_server_bank_balance = get_server_bank_balance(user_profile, guild_id)
         
         amount_to_deposit = 0
@@ -47,23 +53,32 @@ class DepositCommandCog(commands.Cog, name="Deposit Command"):
         except ValueError:
             logger.warning(f"Lỗi ValueError khi user {author_id} nhập amount_str='{amount_str}' cho lệnh 'deposit'.")
             await try_send(ctx, content=f"{ICON_WARNING} Vui lòng nhập một số tiền hợp lệ hoặc 'all'.")
+            # Không cần save_economy_data vì chưa có thay đổi, và get_or_create_global_user_profile không tự save
             return 
             
         if amount_to_deposit <= 0:
-            logger.warning(f"User {author_id} nhập số tiền deposit không hợp lệ (<=0): {amount_to_deposit}")
-            await try_send(ctx, content=f"{ICON_ERROR} Số tiền gửi phải lớn hơn 0.")
-            return 
-            
+            # Nếu người dùng deposit 'all' và global_balance của họ là 0 (hoặc âm), amount_to_deposit sẽ <=0
+            if not (amount_str.lower() == 'all' and amount_to_deposit == 0) : # Cho phép deposit all khi balance = 0 (không có tác dụng)
+                logger.warning(f"User {author_id} nhập số tiền deposit không hợp lệ (<=0): {amount_to_deposit}")
+                await try_send(ctx, content=f"{ICON_ERROR} Số tiền gửi phải lớn hơn 0.")
+                return
+            elif amount_str.lower() == 'all' and amount_to_deposit == 0: # Trường hợp gõ "all" khi ví rỗng
+                 await try_send(ctx, content=f"{ICON_INFO} Ví Toàn Cục của bạn hiện đang rỗng, không có gì để gửi.")
+                 return
+
+
         if original_global_balance < amount_to_deposit:
             logger.warning(f"User {author_id} không đủ tiền trong Ví Toàn Cục để deposit {amount_to_deposit}. Số dư ví: {original_global_balance}")
             await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền trong Ví Toàn Cục. {ICON_MONEY_BAG} Ví của bạn: {original_global_balance:,} {CURRENCY_SYMBOL}")
             return 
         
+        # Thực hiện giao dịch
         user_profile["global_balance"] = original_global_balance - amount_to_deposit
         new_server_bank_balance = original_server_bank_balance + amount_to_deposit
+        # set_server_bank_balance sẽ tự tạo key guild_id trong bank_accounts nếu chưa có
         set_server_bank_balance(user_profile, guild_id, new_server_bank_balance)
         
-        save_economy_data(economy_data) 
+        save_economy_data(economy_data) # Lưu lại tất cả thay đổi
 
         logger.info(f"Guild: {ctx.guild.name} ({guild_id}) - User: {ctx.author.display_name} ({author_id}) đã deposit {amount_to_deposit:,} {CURRENCY_SYMBOL} vào ngân hàng server. "
                     f"Ví Toàn Cục: {original_global_balance:,} -> {user_profile['global_balance']:,}. "
