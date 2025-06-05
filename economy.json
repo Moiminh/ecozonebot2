@@ -1,28 +1,11 @@
 {
-  "users": {
-    "USER_ID_1_EXAMPLE": {
-      "global_balance": 0,
-      "inventory_global": [],
-      "bank_accounts": {},
-      "last_work_global": 0,
-      "last_daily_global": 0,
-      "last_beg_global": 0,
-      "last_rob_global": 0,
-      "last_crime_global": 0,
-      "last_fish_global": 0,
-      "last_slots_global": 0,
-      "last_cf_global": 0,
-      "last_dice_global": 0
-    }
-  },
-  "guild_configs": {
-    "GUILD_ID_A_EXAMPLE": {
-      "bare_command_active_channels": [],
-      "muted_channels": []
-    }
-  },
+  "users": {},
+  "guild_configs": {},
+  "global_shop_stock": {},
   "bot_metadata": {
-      "last_global_event_timestamp": 0,
-      "total_commands_processed_global": 0
+    "data_structure_version": "hybrid_v2_level_shop_pending_db_rewrite",
+    "notes": "Ecoworld initial data structure for global user data, per-server banks, global shop stock, and global/local levels. Awaiting database.py rewrite.",
+    "last_global_event_timestamp": 0,
+    "total_commands_processed_global": 0
   }
 }
