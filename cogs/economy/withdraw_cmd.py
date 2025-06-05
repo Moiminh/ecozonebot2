@@ -1,15 +1,20 @@
 # bot/cogs/economy/withdraw_cmd.py
 import nextcord
 from nextcord.ext import commands
-import logging # <<< THÊM IMPORT NÀY
+import logging
 
-# Import các thành phần cần thiết từ package 'core'
-from core.database import get_user_data, save_data 
+from core.database import (
+    load_economy_data,
+    get_or_create_global_user_profile,
+    get_server_bank_balance, # Để lấy số dư bank cũ
+    set_server_bank_balance, # Để cập nhật số dư bank mới
+    save_economy_data
+)
 from core.utils import try_send
 from core.config import CURRENCY_SYMBOL
-from core.icons import ICON_BANK, ICON_MONEY_BAG, ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO # Đảm bảo có ICON_INFO
+from core.icons import ICON_BANK, ICON_MONEY_BAG, ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO
 
-logger = logging.getLogger(__name__) # <<< LẤY LOGGER CHO MODULE NÀY
+logger = logging.getLogger(__name__)
 
 class WithdrawCommandCog(commands.Cog, name="Withdraw Command"):
     def __init__(self, bot: commands.Bot):
@@ -18,48 +23,58 @@ class WithdrawCommandCog(commands.Cog, name="Withdraw Command"):
 
     @commands.command(name='withdraw', aliases=['wd'])
     async def withdraw(self, ctx: commands.Context, amount_str: str):
-        """Rút tiền từ tài khoản ngân hàng về ví của bạn."""
-        logger.debug(f"Lệnh 'withdraw' được gọi bởi {ctx.author.name} (ID: {ctx.author.id}) với amount_str='{amount_str}' tại guild {ctx.guild.id}.")
-        
-        data = get_user_data(ctx.guild.id, ctx.author.id)
-        user_data = data[str(ctx.guild.id)][str(ctx.author.id)]
+        """Rút tiền từ Ngân Hàng của bạn tại server này về Ví Toàn Cục."""
+        author_id = ctx.author.id
+        guild_id = ctx.guild.id # Lệnh này chỉ dùng trong guild
 
-        original_balance = user_data.get("balance", 0)
-        original_bank_balance = user_data.get("bank_balance", 0)
-        amount = 0 # Khởi tạo amount
+        logger.debug(f"Lệnh 'withdraw' được gọi bởi {ctx.author.name} ({author_id}) với amount_str='{amount_str}' tại guild '{ctx.guild.name}' ({guild_id}).")
+        
+        economy_data = load_economy_data()
+        user_profile = get_or_create_global_user_profile(economy_data, author_id)
+        
+        original_global_balance = user_profile.get("global_balance", 0)
+        original_server_bank_balance = get_server_bank_balance(user_profile, guild_id)
+        
+        amount_to_withdraw = 0
 
         try:
             if amount_str.lower() == 'all':
-                amount = original_bank_balance # Rút hết từ ngân hàng
-                logger.debug(f"User {ctx.author.id} chọn withdraw 'all', số tiền: {amount}")
+                amount_to_withdraw = original_server_bank_balance # Rút hết từ ngân hàng server
+                logger.debug(f"User {author_id} chọn withdraw 'all' từ ngân hàng server, số tiền: {amount_to_withdraw}")
             else:
-                amount = int(amount_str)
-                logger.debug(f"User {ctx.author.id} chọn withdraw số tiền: {amount}")
+                amount_to_withdraw = int(amount_str)
+                logger.debug(f"User {author_id} chọn withdraw số tiền: {amount_to_withdraw} từ ngân hàng server")
+
         except ValueError:
-            logger.warning(f"Lỗi ValueError khi user {ctx.author.id} nhập amount_str='{amount_str}' cho lệnh 'withdraw'.")
+            logger.warning(f"Lỗi ValueError khi user {author_id} nhập amount_str='{amount_str}' cho lệnh 'withdraw'.")
             await try_send(ctx, content=f"{ICON_WARNING} Vui lòng nhập một số tiền hợp lệ hoặc 'all'.")
             return
             
-        if amount <= 0:
-            logger.warning(f"User {ctx.author.id} nhập số tiền withdraw không hợp lệ (<=0): {amount}")
+        if amount_to_withdraw <= 0:
+            logger.warning(f"User {author_id} nhập số tiền withdraw không hợp lệ (<=0): {amount_to_withdraw}")
             await try_send(ctx, content=f"{ICON_ERROR} Số tiền rút phải lớn hơn 0.")
             return
-        if original_bank_balance < amount:
-            logger.warning(f"User {ctx.author.id} không đủ tiền trong ngân hàng để withdraw {amount}. Số dư ngân hàng: {original_bank_balance}")
-            await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền trong ngân hàng. {ICON_BANK} Ngân hàng của bạn: {original_bank_balance:,} {CURRENCY_SYMBOL}")
+            
+        if original_server_bank_balance < amount_to_withdraw:
+            logger.warning(f"User {author_id} không đủ tiền trong Ngân Hàng Server để withdraw {amount_to_withdraw}. Số dư ngân hàng server: {original_server_bank_balance}")
+            await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền trong Ngân Hàng tại server này. {ICON_BANK} Ngân hàng của bạn: {original_server_bank_balance:,} {CURRENCY_SYMBOL}")
             return
-
-        user_data["balance"] += amount
-        user_data["bank_balance"] -= amount
-        save_data(data)
-
-        # Ghi log hành động của người chơi
-        logger.info(f"User {ctx.author.display_name} ({ctx.author.id}) đã withdraw {amount:,} {CURRENCY_SYMBOL}. "
-                    f"Ví: {original_balance:,} -> {user_data['balance']:,}. "
-                    f"Ngân hàng: {original_bank_balance:,} -> {user_data['bank_balance']:,}.")
         
-        await try_send(ctx, content=f"{ICON_SUCCESS} Bạn đã rút **{amount:,}** {CURRENCY_SYMBOL} từ ngân hàng.\n{ICON_MONEY_BAG} Ví: **{user_data['balance']:,}** | {ICON_BANK} Ngân hàng: **{user_data['bank_balance']:,}**")
-        logger.debug(f"Lệnh 'withdraw' cho {ctx.author.name} đã xử lý xong.")
+        # Thực hiện giao dịch
+        user_profile["global_balance"] = original_global_balance + amount_to_withdraw
+        new_server_bank_balance = original_server_bank_balance - amount_to_withdraw
+        set_server_bank_balance(user_profile, guild_id, new_server_bank_balance)
+        
+        save_economy_data(economy_data) 
+
+        logger.info(f"Guild: {ctx.guild.name} ({guild_id}) - User: {ctx.author.display_name} ({author_id}) đã withdraw {amount_to_withdraw:,} {CURRENCY_SYMBOL} từ ngân hàng server. "
+                    f"Ví Toàn Cục: {original_global_balance:,} -> {user_profile['global_balance']:,}. "
+                    f"Ngân Hàng Server ({ctx.guild.name}): {original_server_bank_balance:,} -> {new_server_bank_balance:,}.")
+        
+        await try_send(ctx, content=f"{ICON_SUCCESS} Bạn đã rút **{amount_to_withdraw:,}** {CURRENCY_SYMBOL} từ Ngân Hàng tại server này về Ví Toàn Cục.\n"
+                                    f"{ICON_MONEY_BAG} Ví Toàn Cục: **{user_profile['global_balance']:,}** {CURRENCY_SYMBOL}\n"
+                                    f"{ICON_BANK} Ngân Hàng Server ({ctx.guild.name}): **{new_server_bank_balance:,}** {CURRENCY_SYMBOL}")
+        logger.debug(f"Lệnh 'withdraw' cho {ctx.author.name} tại guild '{ctx.guild.name}' ({guild_id}) đã xử lý xong.")
 
 def setup(bot: commands.Bot):
     bot.add_cog(WithdrawCommandCog(bot))
