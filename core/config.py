@@ -3,6 +3,7 @@
 # --- Bot Configuration ---
 COMMAND_PREFIX = '!'               # <<< ĐẢM BẢO DÒNG NÀY TỒN TẠI VÀ ĐÚNG
 ECONOMY_FILE = 'economy.json' 
+MODERATORS_FILE = 'moderators.json'
 CURRENCY_SYMBOL = "💰" 
 
 # --- Cooldowns (seconds) ---
