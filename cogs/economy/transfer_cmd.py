@@ -25,7 +25,7 @@ class TransferCommandCog(commands.Cog, name="Transfer Command"):
         
         sender = ctx.author
         guild_name_for_log = ctx.guild.name if ctx.guild else "DM"
-        guild_id_for_log = ctx.guild.id if ctx.guild else "N/A" # Lệnh có thể gọi từ DM
+        guild_id_for_log = ctx.guild.id if ctx.guild else "N/A" 
         
         logger.debug(f"Lệnh 'transfer' được gọi bởi {sender.name} ({sender.id}) "
                      f"đến {recipient.name} ({recipient.id}) với số tiền {amount} "
@@ -53,22 +53,19 @@ class TransferCommandCog(commands.Cog, name="Transfer Command"):
             logger.warning(f"User {sender.id} không đủ tiền trong Ví Toàn Cục để transfer {amount} cho {recipient.id}. "
                            f"Số dư ví: {original_sender_global_balance}")
             await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền trong Ví Toàn Cục! {ICON_MONEY_BAG} Ví của bạn: **{original_sender_global_balance:,}** {CURRENCY_SYMBOL}.")
-            # Không save_economy_data ở đây vì sender_profile có thể vừa được tạo/cập nhật key bởi get_or_create...
-            # nhưng giao dịch không thành công. Chỉ save khi giao dịch thành công.
-            # Tuy nhiên, nếu get_or_create... đã thay đổi economy_data (ví dụ tạo user mới),
-            # thì việc không save ở đây có thể làm mất user đó nếu bot tắt ngay.
-            # Để an toàn hơn, có thể save nếu sender_profile được tạo mới, hoặc luôn save.
-            # Hiện tại: không save nếu giao dịch thất bại để tránh ghi thừa.
+            # Không save ở đây nếu giao dịch thất bại, trừ khi get_or_create_global_user_profile đã tạo mới sender
+            # và bạn muốn lưu user mới đó ngay cả khi giao dịch không thành công.
+            # Để nhất quán, nếu get_or_create... có thể thay đổi 'economy_data', thì nên save sau khi gọi nó,
+            # hoặc để nó tự save. Hiện tại, chúng ta save ở cuối nếu giao dịch thành công.
             return 
         
         recipient_profile = get_or_create_global_user_profile(economy_data, recipient.id)
         original_recipient_global_balance = recipient_profile.get("global_balance", 0)
         
-        # Thực hiện giao dịch trên Ví Toàn Cục
         sender_profile["global_balance"] = original_sender_global_balance - amount
         recipient_profile["global_balance"] = original_recipient_global_balance + amount
         
-        save_economy_data(economy_data) # Lưu lại tất cả thay đổi (cả sender và recipient)
+        save_economy_data(economy_data) 
 
         logger.info(f"GLOBAL TRANSFER: User {sender.display_name} ({sender.id}) đã transfer {amount:,} {CURRENCY_SYMBOL} "
                     f"cho {recipient.display_name} ({recipient.id}). "
