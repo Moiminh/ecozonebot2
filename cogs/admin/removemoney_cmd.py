@@ -1,70 +1,87 @@
-# bot/cogs/admin/removemoney_cmd.py
 import nextcord
 from nextcord.ext import commands
-import logging # <<< THÊM IMPORT NÀY
+import logging
 
-from core.database import get_user_data, save_data
+from core.database import (
+    load_economy_data,
+    get_or_create_global_user_profile,
+    get_or_create_user_server_data,
+    save_economy_data
+)
 from core.utils import try_send, is_guild_owner_check
 from core.config import CURRENCY_SYMBOL, COMMAND_PREFIX
-from core.icons import ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO # Đảm bảo các icon này có trong core/icons.py
+from core.icons import ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO
 
-logger = logging.getLogger(__name__) # <<< LẤY LOGGER CHO MODULE NÀY
+logger = logging.getLogger(__name__)
 
-class RemoveMoneyCommandCog(commands.Cog, name="RemoveMoney Command"):
+class RemoveMoneyCommandCog(commands.Cog, name="ServerAdmin RemoveMoney"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.debug(f"RemoveMoneyCommandCog initialized.")
+        logger.debug(f"ServerAdmin RemoveMoneyCommandCog initialized for Ecoworld Economy.")
 
     @commands.command(name='removemoney', aliases=['rm', 'ecotake', 'submoney'])
-    @commands.check(is_guild_owner_check) 
+    @commands.check(is_guild_owner_check)
     async def remove_money(self, ctx: commands.Context, member: nextcord.Member, amount: int):
-        """(Chỉ Chủ Server) Trừ tiền từ tài khoản của một thành viên."""
-        logger.debug(f"Lệnh 'removemoney' được gọi bởi {ctx.author.name} (ID: {ctx.author.id}) đối với member {member.name} (ID: {member.id}) với amount {amount} tại guild {ctx.guild.id}.")
-        
-        if amount <= 0:
-            logger.warning(f"Admin {ctx.author.id} cố gắng removemoney với số tiền không hợp lệ (<=0): {amount} cho user {member.id}")
-            await try_send(ctx, content=f"{ICON_ERROR} Số tiền trừ đi phải là số dương.")
+        if not ctx.guild:
+            await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
             return
 
-        data = get_user_data(ctx.guild.id, member.id)
-        user_data = data[str(ctx.guild.id)][str(member.id)]
-        original_balance = user_data.get("balance", 0)
-        
-        amount_removed = min(amount, original_balance) # Không trừ quá số tiền hiện có
-        user_data["balance"] -= amount_removed # user_data["balance"] = original_balance - amount_removed
-        
-        save_data(data)
+        target_user_id = member.id
+        guild_id = ctx.guild.id
 
-        # Ghi log hành động admin
-        logger.info(f"ADMIN ACTION: {ctx.author.display_name} ({ctx.author.id}) đã dùng 'removemoney', trừ {amount_removed:,} {CURRENCY_SYMBOL} "
-                    f"từ {member.display_name} ({member.id}). Yêu cầu gốc: {amount:,}. "
-                    f"Số dư của {member.display_name}: {original_balance:,} -> {user_data['balance']:,}.")
+        logger.debug(f"Lệnh 'removemoney' (server admin) được gọi bởi {ctx.author.name} ({ctx.author.id}) đối với member {member.name} ({target_user_id}) với amount {amount} tại guild '{ctx.guild.name}' ({guild_id}).")
         
-        msg_content = f"{ICON_SUCCESS} Đã trừ **{amount_removed:,}** {CURRENCY_SYMBOL} từ {member.mention}. Số dư mới của họ: **{user_data['balance']:,}**"
-        if amount > original_balance and original_balance > 0: 
-            logger.info(f"Admin {ctx.author.id} yêu cầu trừ {amount} từ {member.id} nhưng user chỉ có {original_balance}. Đã trừ {amount_removed}.")
-            msg_content = f"{ICON_WARNING} {member.mention} không đủ tiền như yêu cầu ({amount:,}). " + msg_content
-        elif original_balance == 0 and amount > 0: 
-            logger.info(f"Admin {ctx.author.id} yêu cầu trừ {amount} từ {member.id} nhưng user có 0 tiền.")
-            msg_content = f"{ICON_INFO} {member.mention} không có tiền để trừ."
+        if amount <= 0:
+            logger.warning(f"Admin Server {ctx.author.id} cố gắng removemoney với số tiền không dương: {amount} cho user {target_user_id} tại guild {guild_id}.")
+            await try_send(ctx, content=f"{ICON_ERROR} Số tiền trừ đi phải là số dương.")
+            return
+            
+        economy_data = load_economy_data()
+        global_profile = get_or_create_global_user_profile(economy_data, target_user_id)
+        server_data = get_or_create_user_server_data(global_profile, guild_id)
+        
+        local_balance_dict = server_data.get("local_balance", {"earned": 0, "admin_added": 0})
+        original_earned_amount = local_balance_dict.get("earned", 0)
+        original_admin_added_amount = local_balance_dict.get("admin_added", 0)
+        original_total_local_balance = original_earned_amount + original_admin_added_amount
+
+        if original_total_local_balance == 0:
+            await try_send(ctx, content=f"{ICON_INFO} {member.mention} không có tiền trong Ví Local tại server này để trừ.")
+            return
+
+        amount_to_remove = min(amount, original_total_local_balance)
+        
+        admin_money_deducted = min(original_admin_added_amount, amount_to_remove)
+        earned_money_deducted = amount_to_remove - admin_money_deducted
+
+        server_data["local_balance"]["admin_added"] -= admin_money_deducted
+        server_data["local_balance"]["earned"] -= earned_money_deducted
+        
+        save_economy_data(economy_data)
+
+        new_total_local_balance = server_data["local_balance"]["earned"] + server_data["local_balance"]["admin_added"]
+
+        logger.info(f"SERVER ADMIN ACTION: {ctx.author.display_name} ({ctx.author.id}) tại guild '{ctx.guild.name}' ({guild_id}) đã dùng 'removemoney', trừ {amount_to_remove:,} {CURRENCY_SYMBOL} "
+                    f"từ VÍ LOCAL của {member.display_name} ({target_user_id}). Yêu cầu gốc: {amount:,}. "
+                    f"Số dư local cũ: {original_total_local_balance:,} -> mới: {new_total_local_balance:,}. "
+                    f"(Trừ từ admin_added: {admin_money_deducted:,}, từ earned: {earned_money_deducted:,})")
+        
+        msg_content = f"{ICON_SUCCESS} Đã trừ **{amount_to_remove:,}** {CURRENCY_SYMBOL} từ Ví Local của {member.mention} tại server này. Số dư Ví Local mới của họ: **{new_total_local_balance:,}**"
+        if amount > original_total_local_balance:
+            msg_content = f"{ICON_WARNING} {member.mention} chỉ có {original_total_local_balance:,} {CURRENCY_SYMBOL} trong Ví Local. Đã trừ hết. " + msg_content
         
         await try_send(ctx, content=msg_content)
-        logger.debug(f"Lệnh 'removemoney' cho {member.name} bởi {ctx.author.name} đã xử lý xong.")
         
     @remove_money.error 
     async def remove_money_error(self, ctx: commands.Context, error):
-        command_name_for_log = ctx.command.name if ctx.command else "removemoney"
         if isinstance(error, commands.CheckFailure):
-            logger.warning(f"CheckFailure cho lệnh '{command_name_for_log}' bởi user {ctx.author.id}: {error}")
             await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ dành cho Chủ Server (người tạo ra server).")
         elif isinstance(error, commands.MissingRequiredArgument):
-            logger.warning(f"MissingRequiredArgument cho lệnh '{command_name_for_log}' bởi user {ctx.author.id}: {error.param.name}")
-            await try_send(ctx, content=f"{ICON_WARNING} Sử dụng đúng: `{COMMAND_PREFIX}{command_name_for_log} <@người_dùng> <số_tiền>`")
+            await try_send(ctx, content=f"{ICON_WARNING} Sử dụng đúng: `{COMMAND_PREFIX}{ctx.command.name} <@người_dùng> <số_tiền>`")
         elif isinstance(error, commands.BadArgument):
-            logger.warning(f"BadArgument cho lệnh '{command_name_for_log}' bởi user {ctx.author.id}: {error}")
             await try_send(ctx, content=f"{ICON_ERROR} Đối số không hợp lệ. Hãy tag một người dùng và nhập một số tiền là số nguyên.")
         else:
-            logger.error(f"Lỗi không xác định trong lệnh '{command_name_for_log}' bởi user {ctx.author.id}: {error}", exc_info=True)
+            logger.error(f"Lỗi không xác định trong lệnh 'removemoney' bởi {ctx.author.name}:", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi thực hiện lệnh trừ tiền.")
 
 def setup(bot: commands.Bot):
