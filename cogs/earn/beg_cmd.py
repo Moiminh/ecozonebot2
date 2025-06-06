@@ -39,7 +39,7 @@ class BegCommandCog(commands.Cog, name="Beg Command"):
             await try_send(ctx, content=f"{ICON_LOADING} Đừng xin liên tục thế chứ! Lệnh `beg` (toàn cục) chờ: **{time_left}**.")
             return
             
-        user_profile["last_beg_global"] = datetime.now().timestamp() # Cập nhật cooldown toàn cục
+        user_profile["last_beg_global"] = datetime.now().timestamp()
         
         if random.random() < 0.7: 
             earnings = random.randint(10, 100)
