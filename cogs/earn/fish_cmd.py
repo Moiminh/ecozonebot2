@@ -1,4 +1,3 @@
-# bot/cogs/earn/fish_cmd.py
 import nextcord
 from nextcord.ext import commands
 import random
@@ -8,57 +7,66 @@ import logging
 from core.database import (
     load_economy_data,
     get_or_create_global_user_profile,
+    get_or_create_user_server_data,
     save_economy_data
 )
 from core.utils import try_send, get_time_left_str
 from core.config import CURRENCY_SYMBOL, FISH_COOLDOWN, FISH_CATCHES
-from core.icons import ICON_LOADING, ICON_FISH, ICON_INFO # Đảm bảo các icon này có trong core/icons.py
+from core.icons import ICON_LOADING, ICON_FISH, ICON_INFO, ICON_ERROR
 
 logger = logging.getLogger(__name__)
 
 class FishCommandCog(commands.Cog, name="Fish Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info(f"{ICON_INFO} FishCommandCog initialized.")
+        logger.debug(f"FishCommandCog initialized for Ecoworld Economy.")
 
     @commands.command(name='fish')
     async def fish(self, ctx: commands.Context):
-        author_id = ctx.author.id
-        guild_name_for_log = ctx.guild.name if ctx.guild else "DM"
-        guild_id_for_log = ctx.guild.id if ctx.guild else "N/A"
+        if not ctx.guild:
+            await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
+            return
 
-        logger.debug(f"Lệnh 'fish' được gọi bởi {ctx.author.name} ({author_id}) tại context guild '{guild_name_for_log}' ({guild_id_for_log}).")
+        author_id = ctx.author.id
+        guild_id = ctx.guild.id
+        
+        logger.debug(f"Lệnh 'fish' được gọi bởi {ctx.author.name} ({author_id}) tại guild '{ctx.guild.name}' ({guild_id}).")
         
         economy_data = load_economy_data()
-        user_profile = get_or_create_global_user_profile(economy_data, author_id)
-        original_global_balance = user_profile.get("global_balance", 0)
-
-        time_left = get_time_left_str(user_profile.get("last_fish_global"), FISH_COOLDOWN)
+        global_profile = get_or_create_global_user_profile(economy_data, author_id)
+        
+        time_left = get_time_left_str(global_profile.get("last_fish_global"), FISH_COOLDOWN)
         if time_left:
-            logger.debug(f"User {author_id} dùng lệnh 'fish' khi đang cooldown. Còn lại: {time_left}")
             await try_send(ctx, content=f"{ICON_LOADING} Cá cần thời gian để cắn câu! Lệnh `fish` (toàn cục) chờ: **{time_left}**.")
             return
             
-        user_profile["last_fish_global"] = datetime.now().timestamp()
+        global_profile["last_fish_global"] = datetime.now().timestamp()
         
         catch_emoji, price = random.choice(list(FISH_CATCHES.items())) 
         
-        user_profile["global_balance"] = original_global_balance + price
+        xp_earned_local = random.randint(3, 15)
+        xp_earned_global = random.randint(5, 25)
+        
+        server_data = get_or_create_user_server_data(global_profile, guild_id)
+        
+        original_local_earned = server_data["local_balance"].get("earned", 0)
+        
+        server_data["local_balance"]["earned"] = original_local_earned + price
+        server_data["xp_local"] += xp_earned_local
+        global_profile["xp_global"] += xp_earned_global
+        
         save_economy_data(economy_data)
 
-        logger.info(f"User: {ctx.author.display_name} ({author_id}) - Guild Context: '{guild_name_for_log}' ({guild_id_for_log}) - Action: 'fish' - Result: câu được '{catch_emoji}' trị giá {price} {CURRENCY_SYMBOL}. "
-                    f"Ví Toàn Cục: {original_global_balance:,} -> {user_profile['global_balance']:,}.")
+        logger.info(f"Guild: {ctx.guild.name} ({guild_id}) - User: {ctx.author.display_name} ({author_id}) đã 'fish'. "
+                    f"Result: câu được '{catch_emoji}' trị giá {price} {CURRENCY_SYMBOL}, +{xp_earned_local} xp_local, +{xp_earned_global} xp_global. "
+                    f"Earned Balance: {original_local_earned:,} -> {server_data['local_balance']['earned']:,}.")
 
         message_to_send = ""
         if price >= 50: 
-            message_to_send = f"{ICON_FISH} Chúc mừng! Bạn câu được một con {catch_emoji} và bán nó được **{price:,}** {CURRENCY_SYMBOL} vào Ví Toàn Cục!"
+            message_to_send = f"{ICON_FISH} Chúc mừng! Bạn câu được một con {catch_emoji} và bán nó được **{price:,}** {CURRENCY_SYMBOL} vào Ví Local!"
         elif price > 5: 
-            message_to_send = f"{ICON_FISH} Bạn câu được {catch_emoji}, bán được **{price:,}** {CURRENCY_SYMBOL} vào Ví Toàn Cục. Cũng không tệ!"
+            message_to_send = f"{ICON_FISH} Bạn câu được {catch_emoji}, bán được **{price:,}** {CURRENCY_SYMBOL} vào Ví Local. Cũng không tệ!"
         else: 
-            message_to_send = f"{ICON_FISH} Ôi không! Bạn câu được rác {catch_emoji}... nhưng may là vẫn bán được **{price:,}** {CURRENCY_SYMBOL} vào Ví Toàn Cục."
+            message_to_send = f"{ICON_FISH} Ôi không! Bạn câu được rác {catch_emoji}... nhưng may là vẫn bán được **{price:,}** {CURRENCY_SYMBOL} vào Ví Local."
         
         await try_send(ctx, content=message_to_send)
-        logger.debug(f"Lệnh 'fish' cho {ctx.author.name} tại context guild '{guild_name_for_log}' ({guild_id_for_log}) đã xử lý xong.")
-
-def setup(bot: commands.Bot):
-    bot.add_cog(FishCommandCog(bot))
