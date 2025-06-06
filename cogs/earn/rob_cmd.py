@@ -50,11 +50,11 @@ class RobCommandCog(commands.Cog, name="Rob Command"):
 
         target_profile = get_or_create_global_user_profile(economy_data, target.id)
         original_target_balance = target_profile.get("global_balance", 0)
-
+        
         author_profile["last_rob_global"] = datetime.now().timestamp()
 
         if original_target_balance < 100:
-            logger.info(f"User {author.display_name} ({author.id}) thử 'rob' {target.display_name} ({target.id}) nhưng mục tiêu quá nghèo (dưới 100). Số dư mục tiêu: {original_target_balance}")
+            logger.info(f"ROB FAILED (TARGET POOR): User {author.display_name} ({author.id}) thử 'rob' {target.display_name} ({target.id}) nhưng mục tiêu quá nghèo (dưới 100). Số dư mục tiêu: {original_target_balance}. (Context: {guild_name_for_log})")
             await try_send(ctx, content=f"{ICON_INFO} {target.mention} quá nghèo để cướp.")
             save_economy_data(economy_data)
             return
@@ -69,7 +69,7 @@ class RobCommandCog(commands.Cog, name="Rob Command"):
                  robbed_amount = random.randint(min_rob_amount, max_rob_amount)
             
             if robbed_amount <= 0:
-                 logger.info(f"User {author.display_name} ({author.id}) thử 'rob' {target.display_name} ({target.id}) nhưng số tiền cướp được quá nhỏ ({robbed_amount}). Mục tiêu có: {original_target_balance}")
+                 logger.info(f"ROB FAILED (AMOUNT TOO SMALL): User {author.display_name} ({author.id}) thử 'rob' {target.display_name} ({target.id}) nhưng số tiền cướp được quá nhỏ ({robbed_amount}). Mục tiêu có: {original_target_balance}. (Context: {guild_name_for_log})")
                  await try_send(ctx,content=f"{ICON_INFO} {target.mention} có quá ít tiền để cướp có ý nghĩa.")
                  save_economy_data(economy_data)
                  return
@@ -77,17 +77,19 @@ class RobCommandCog(commands.Cog, name="Rob Command"):
             author_profile["global_balance"] = original_author_balance + robbed_amount
             target_profile["global_balance"] = original_target_balance - robbed_amount
             
-            logger.info(f"ROB SUCCESS: {author.display_name} ({author.id}) đã cướp {robbed_amount:,} {CURRENCY_SYMBOL} từ {target.display_name} ({target.id}) tại context guild '{guild_name_for_log}'. "
+            logger.info(f"ROB SUCCESS: User {author.display_name} ({author.id}) đã cướp {robbed_amount:,} {CURRENCY_SYMBOL} từ {target.display_name} ({target.id}). "
                         f"Author global_balance: {original_author_balance:,} -> {author_profile['global_balance']:,}. "
-                        f"Target global_balance: {original_target_balance:,} -> {target_profile['global_balance']:,}.")
+                        f"Target global_balance: {original_target_balance:,} -> {target_profile['global_balance']:,}. "
+                        f"(Context: {guild_name_for_log})")
             
             await try_send(ctx, content=f"{ICON_ROB} Bạn đã cướp thành công **{robbed_amount:,}** {CURRENCY_SYMBOL} từ Ví Toàn Cục của {target.mention}! {ICON_MONEY_BAG} Ví bạn: {author_profile['global_balance']:,}")
         else:
             fine_amount = min(int(original_author_balance * ROB_FINE_RATE), original_author_balance) 
             author_profile["global_balance"] = original_author_balance - fine_amount
             
-            logger.info(f"ROB FAILED: {author.display_name} ({author.id}) cướp thất bại {target.display_name} ({target.id}) và bị phạt {fine_amount:,} {CURRENCY_SYMBOL} tại context guild '{guild_name_for_log}'. "
-                        f"Author global_balance: {original_author_balance:,} -> {author_profile['global_balance']:,}.")
+            logger.info(f"ROB FAILED (CAUGHT): User {author.display_name} ({author.id}) cướp thất bại {target.display_name} ({target.id}) và bị phạt {fine_amount:,} {CURRENCY_SYMBOL}. "
+                        f"Author global_balance: {original_author_balance:,} -> {author_profile['global_balance']:,}. "
+                        f"(Context: {guild_name_for_log})")
 
             await try_send(ctx, content=f"👮 {ICON_ERROR} Bạn đã bị bắt khi cố cướp {target.mention} và bị phạt **{fine_amount:,}** {CURRENCY_SYMBOL}. {ICON_MONEY_BAG} Ví bạn còn: {author_profile['global_balance']:,}")
         
