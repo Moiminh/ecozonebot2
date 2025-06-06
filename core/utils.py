@@ -140,4 +140,15 @@ async def is_bot_moderator(ctx: commands.Context) -> bool:
     
     utils_logger.debug(f"is_bot_moderator check: User {ctx.author.id} ({ctx.author.name}) không phải owner và không có trong moderator_ids.")
     return False
+   
+def format_large_number(num):
+    if num < 1000:
+        return str(num)
+    if num < 1_000_000:
+        return f"{num / 1000:.1f}k".replace(".0", "")
+    if num < 1_000_000_000:
+        return f"{num / 1_000_000:.2f}M".replace(".00", "")
+    if num < 1_000_000_000_000:
+        return f"{num / 1_000_000_000:.2f}B".replace(".00", "")
+    return f"{num / 1_000_000_000_000:.2f}T".replace(".00", "")
 # =====================================================
