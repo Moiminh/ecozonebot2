@@ -1,46 +1,57 @@
-# bot/cogs/admin/addmoney_cmd.py
 import nextcord
 from nextcord.ext import commands
-import logging # <<< THÊM IMPORT NÀY
+import logging
 
-from core.database import get_user_data, save_data
+from core.database import (
+    load_economy_data,
+    get_or_create_global_user_profile,
+    get_or_create_user_server_data,
+    save_economy_data
+)
 from core.utils import try_send, is_guild_owner_check
 from core.config import CURRENCY_SYMBOL, COMMAND_PREFIX
-from core.icons import ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO # Đảm bảo có ICON_INFO
+from core.icons import ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO, ICON_BANK
 
-logger = logging.getLogger(__name__) # <<< LẤY LOGGER CHO MODULE NÀY
+logger = logging.getLogger(__name__)
 
-class AddMoneyCommandCog(commands.Cog, name="AddMoney Command"):
+class AddMoneyCommandCog(commands.Cog, name="ServerAdmin AddMoney"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.debug(f"AddMoneyCommandCog initialized.")
+        logger.debug(f"ServerAdmin AddMoneyCommandCog initialized for Ecoworld Economy.")
 
     @commands.command(name='addmoney', aliases=['am', 'ecoadd'])
-    @commands.check(is_guild_owner_check) 
+    @commands.check(is_guild_owner_check)
     async def add_money(self, ctx: commands.Context, member: nextcord.Member, amount: int):
-        """(Chỉ Chủ Server) Cộng tiền vào tài khoản của một thành viên."""
-        logger.debug(f"Lệnh 'addmoney' được gọi bởi {ctx.author.name} (ID: {ctx.author.id}) cho member {member.name} (ID: {member.id}) với amount {amount} tại guild {ctx.guild.id}.")
+        if not ctx.guild:
+            await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
+            return
+
+        target_user_id = member.id
+        guild_id = ctx.guild.id
+        
+        logger.debug(f"Lệnh 'addmoney' (server admin) được gọi bởi {ctx.author.name} ({ctx.author.id}) cho member {member.name} ({target_user_id}) với amount {amount} tại guild '{ctx.guild.name}' ({guild_id}).")
         
         if amount <= 0:
-            logger.warning(f"Admin {ctx.author.id} cố gắng addmoney với số tiền không hợp lệ (<=0): {amount} cho user {member.id}")
+            logger.warning(f"Admin Server {ctx.author.id} cố gắng addmoney với số tiền không dương: {amount} cho user {target_user_id} tại guild {guild_id}.")
             await try_send(ctx, content=f"{ICON_ERROR} Số tiền cộng thêm phải là số dương.")
             return
         
-        data = get_user_data(ctx.guild.id, member.id)
-        user_data = data[str(ctx.guild.id)][str(member.id)]
-        original_balance = user_data.get("balance", 0)
+        economy_data = load_economy_data()
+        global_profile = get_or_create_global_user_profile(economy_data, target_user_id)
+        server_data = get_or_create_user_server_data(global_profile, guild_id)
         
-        user_data["balance"] = original_balance + amount
-        save_data(data)
-
-        # Ghi log hành động admin (sẽ vào cả general log và player_actions.log do là INFO từ cogs.*)
-        logger.info(f"ADMIN ACTION: {ctx.author.display_name} ({ctx.author.id}) đã dùng 'addmoney', cộng {amount:,} {CURRENCY_SYMBOL} "
-                    f"cho {member.display_name} ({member.id}). "
-                    f"Số dư của {member.display_name}: {original_balance:,} -> {user_data['balance']:,}.")
+        original_admin_added = server_data["local_balance"].get("admin_added", 0)
         
-        await try_send(ctx, content=f"{ICON_SUCCESS} Đã cộng **{amount:,}** {CURRENCY_SYMBOL} cho {member.mention}. Số dư mới của họ: **{user_data['balance']:,}**")
-        logger.debug(f"Lệnh 'addmoney' cho {member.name} bởi {ctx.author.name} đã xử lý xong.")
+        server_data["local_balance"]["admin_added"] = original_admin_added + amount
 
+        save_economy_data(economy_data)
+
+        logger.info(f"SERVER ADMIN ACTION: {ctx.author.display_name} ({ctx.author.id}) tại guild '{ctx.guild.name}' ({guild_id}) đã dùng 'addmoney', cộng {amount:,} {CURRENCY_SYMBOL} "
+                    f"vào VÍ LOCAL (ADMIN-ADDED) của {member.display_name} ({target_user_id}). "
+                    f"Số dư admin-added: {original_admin_added:,} -> {server_data['local_balance']['admin_added']:,}.")
+        
+        await try_send(ctx, content=f"{ICON_SUCCESS} Đã cộng **{amount:,}** {CURRENCY_SYMBOL} vào quỹ **Admin-add** trong Ví Local của {member.mention} tại server này.")
+        
     @add_money.error 
     async def add_money_error(self, ctx: commands.Context, error):
         command_name_for_log = ctx.command.name if ctx.command else "addmoney"
@@ -48,13 +59,11 @@ class AddMoneyCommandCog(commands.Cog, name="AddMoney Command"):
             logger.warning(f"CheckFailure cho lệnh '{command_name_for_log}' bởi user {ctx.author.id}: {error}")
             await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ dành cho Chủ Server (người tạo ra server).")
         elif isinstance(error, commands.MissingRequiredArgument):
-            logger.warning(f"MissingRequiredArgument cho lệnh '{command_name_for_log}' bởi user {ctx.author.id}: {error.param.name}")
             await try_send(ctx, content=f"{ICON_WARNING} Sử dụng đúng: `{COMMAND_PREFIX}{command_name_for_log} <@người_dùng> <số_tiền>`")
         elif isinstance(error, commands.BadArgument): 
-            logger.warning(f"BadArgument cho lệnh '{command_name_for_log}' bởi user {ctx.author.id}: {error}")
             await try_send(ctx, content=f"{ICON_ERROR} Đối số không hợp lệ. Hãy tag một người dùng và nhập một số tiền là số nguyên.")
         else:
-            logger.error(f"Lỗi không xác định trong lệnh '{command_name_for_log}' bởi user {ctx.author.id}: {error}", exc_info=True)
+            logger.error(f"Lỗi không xác định trong lệnh '{command_name_for_log}' bởi {ctx.author.name}:", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi thực hiện lệnh cộng tiền.")
 
 def setup(bot: commands.Bot):
