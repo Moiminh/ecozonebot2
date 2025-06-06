@@ -3,9 +3,7 @@
   "guild_configs": {},
   "global_shop_stock": {},
   "bot_metadata": {
-    "data_structure_version": "hybrid_v2.1_level_shop_global_per_server_bank",
-    "notes": "Ecoworld: Global user data (wallet, inventory, cooldowns, global level), per-server bank accounts, per-server local level/inventory, global shop stock.",
-    "last_global_event_timestamp": 0,
-    "total_commands_processed_global": 0
+    "data_structure_version": "Ecoworld_v1.0_Earned_Admin_Split",
+    "notes": "Hệ thống kinh tế Ecoworld với Ví Local (earned/admin-added) và Ví Global."
   }
 }
