@@ -119,9 +119,34 @@ async def is_bot_moderator(ctx: commands.Context) -> bool:
     """
     Hàm check tùy chỉnh để kiểm tra xem người dùng có phải là chủ sở hữu bot
     HOẶC có User ID nằm trong danh sách moderator (từ file moderators.json) hay không.
-    """
-    # 1. Kiểm tra xem có phải là chủ sở hữu bot (owner) không
-    # Nên kiểm tra owner trước vì đây là quyền cao nhất và không cần đọc file
+    """ 
+    if await interaction.client.is_owner(interaction.user):
+        utils_logger.debug(f"Interaction Check: User {interaction.user.id} ({interaction.user.name}) là owner.")
+        return True
+    
+    # 2. Kiểm tra xem có trong danh sách moderator đã tải không
+    try:
+        moderator_ids = load_moderator_ids() # Hàm này từ core.database
+        if interaction.user.id in moderator_ids:
+            utils_logger.debug(f"Interaction Check: User {interaction.user.id} ({interaction.user.name}) được tìm thấy trong danh sách moderator_ids.")
+            return True
+    except Exception as e:
+        utils_logger.error(f"Lỗi khi tải danh sách moderator trong check_is_bot_moderator_interaction: {e}", exc_info=True)
+        # Nếu có lỗi đọc file mod, không cấp quyền cho an toàn
+        return False
+    
+    # 3. Nếu không có quyền, gửi tin nhắn lỗi và trả về False
+    utils_logger.warning(f"Interaction Check: User {interaction.user.id} ({interaction.user.name}) không có quyền moderator cho lệnh slash /{interaction.application_command.name}.")
+    try:
+        # Chỉ gửi nếu interaction chưa được phản hồi
+        if not interaction.response.is_done():
+             await interaction.response.send_message(f"{ICON_ERROR} Bạn không có đủ quyền (Moderator/Owner) để sử dụng lệnh này.", ephemeral=True)
+    except Exception as e:
+        # Nếu gửi tin nhắn lỗi cũng bị lỗi (ví dụ interaction đã hết hạn), chỉ log lại
+        utils_logger.error(f"Lỗi gửi tin nhắn từ chối quyền trong check_is_bot_moderator_interaction: {e}")
+        
+    return False
+
     try:
         if await ctx.bot.is_owner(ctx.author):
             utils_logger.debug(f"is_bot_moderator check: User {ctx.author.id} ({ctx.author.name}) là owner.")
