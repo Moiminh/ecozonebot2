@@ -1,4 +1,3 @@
-# bot/cogs/shop/sell_cmd.py
 import nextcord
 from nextcord.ext import commands
 import logging
@@ -6,6 +5,7 @@ import logging
 from core.database import (
     load_economy_data,
     get_or_create_global_user_profile,
+    get_or_create_user_server_data,
     save_economy_data
 )
 from core.utils import try_send
@@ -17,22 +17,23 @@ logger = logging.getLogger(__name__)
 class SellCommandCog(commands.Cog, name="Sell Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.debug(f"SellCommandCog initialized.")
+        logger.debug(f"SellCommandCog initialized for Ecoworld Economy.")
 
     @commands.command(name='sell')
     async def sell(self, ctx: commands.Context, item_name: str, quantity: int = 1):
-        """Bán một hoặc nhiều vật phẩm từ Túi Đồ Toàn Cục của bạn."""
+        if not ctx.guild:
+            await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
+            return
+
         author_id = ctx.author.id
-        guild_name_for_log = ctx.guild.name if ctx.guild else "DM"
-        
-        logger.debug(f"Lệnh 'sell' được gọi bởi {ctx.author.name} ({author_id}) với item_name='{item_name}', quantity={quantity} tại guild '{guild_name_for_log}'.")
+        guild_id = ctx.guild.id
+
+        logger.debug(f"Lệnh 'sell' được gọi bởi {ctx.author.name} ({author_id}) với item_name='{item_name}', quantity={quantity} tại guild '{ctx.guild.name}' ({guild_id}).")
 
         if quantity <= 0:
-            logger.warning(f"User {author_id} cố gắng bán với quantity không hợp lệ (<=0): {quantity}")
             await try_send(ctx, content=f"{ICON_ERROR} Số lượng bán phải lớn hơn 0.")
             return
 
-        # Xử lý input linh hoạt (tương tự lệnh buy)
         parts = item_name.split()
         processed_item_name = item_name 
         parsed_quantity = quantity      
@@ -41,7 +42,6 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
                 first_word_as_int = int(parts[0])
                 parsed_quantity = first_word_as_int
                 processed_item_name = " ".join(parts[1:])
-                logger.debug(f"Đã phân tích lại input cho 'sell': quantity={parsed_quantity}, item_name='{processed_item_name}'")
             except ValueError:
                 processed_item_name = item_name 
         
@@ -49,18 +49,14 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
         item_name_display = item_id_to_sell.replace("_", " ").capitalize()
 
         if not item_id_to_sell:
-             logger.warning(f"User {author_id} không nhập tên vật phẩm cho lệnh 'sell'.")
              await try_send(ctx, content=f"{ICON_WARNING} Vui lòng nhập tên vật phẩm bạn muốn bán.")
              return
-        
+
         if parsed_quantity <= 0:
-            logger.warning(f"User {author_id} cố gắng bán với parsed_quantity không hợp lệ (<=0): {parsed_quantity}")
             await try_send(ctx, content=f"{ICON_ERROR} Số lượng bán phải lớn hơn 0.")
             return
 
-        # Kiểm tra vật phẩm có trong danh sách master không để biết giá bán
         if item_id_to_sell not in MASTER_ITEM_LIST:
-            logger.warning(f"User {author_id} cố gắng bán vật phẩm không có trong MASTER_ITEM_LIST: '{item_id_to_sell}'")
             await try_send(ctx, content=f"{ICON_ERROR} Vật phẩm `{item_name_display}` không nằm trong danh mục có thể bán của cửa hàng.")
             return
 
@@ -68,52 +64,57 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
         sell_price_per_item = item_master_details.get("sell_price")
 
         if sell_price_per_item is None:
-            logger.warning(f"User {author_id} cố gắng bán vật phẩm không có giá bán: '{item_id_to_sell}'")
             await try_send(ctx, content=f"{ICON_INFO} Vật phẩm `{item_name_display}` này không thể bán lại.")
             return
             
         economy_data = load_economy_data()
-        user_profile = get_or_create_global_user_profile(economy_data, author_id)
-        original_global_balance = user_profile.get("global_balance", 0)
-        
-        # Lấy túi đồ toàn cục
-        inventory_global_list = user_profile.get("inventory_global", [])
-        if not isinstance(inventory_global_list, list):
-            inventory_global_list = []
-            user_profile["inventory_global"] = inventory_global_list
+        global_profile = get_or_create_global_user_profile(economy_data, author_id)
+        server_data = get_or_create_user_server_data(global_profile, guild_id)
 
-        current_item_count = inventory_global_list.count(item_id_to_sell)
+        inv_global_list = global_profile.get("inventory_global", [])
+        inv_local_list = server_data.get("inventory_local", [])
 
-        if current_item_count < parsed_quantity:
-            logger.warning(f"User {author_id} không đủ {parsed_quantity} '{item_name_display}' để bán. Chỉ có {current_item_count}.")
-            await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ **{parsed_quantity} {item_name_display}** trong Túi Đồ Toàn Cục để bán. Bạn chỉ có {current_item_count}.")
+        count_in_global = sum(1 for item in inv_global_list if isinstance(item, dict) and item.get("item_id") == item_id_to_sell)
+        count_in_local = sum(1 for item in inv_local_list if isinstance(item, dict) and item.get("item_id") == item_id_to_sell)
+        total_item_count = count_in_global + count_in_local
+
+        if total_item_count < parsed_quantity:
+            await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ **{parsed_quantity} {item_name_display}** để bán. Bạn chỉ có tổng cộng {total_item_count} cái (ở cả Kho Local và Global).")
             return
+        
+        items_removed_from_local = 0
+        items_to_remove = parsed_quantity
+        
+        temp_inv_local = list(inv_local_list)
+        for item_data in reversed(temp_inv_local):
+            if items_to_remove == 0: break
+            if isinstance(item_data, dict) and item_data.get("item_id") == item_id_to_sell:
+                inv_local_list.remove(item_data)
+                items_to_remove -= 1
+                items_removed_from_local += 1
+
+        items_removed_from_global = 0
+        if items_to_remove > 0:
+            temp_inv_global = list(inv_global_list)
+            for item_data in reversed(temp_inv_global):
+                if items_to_remove == 0: break
+                if isinstance(item_data, dict) and item_data.get("item_id") == item_id_to_sell:
+                    inv_global_list.remove(item_data)
+                    items_to_remove -= 1
+                    items_removed_from_global += 1
         
         total_sell_price = sell_price_per_item * parsed_quantity
         
-        # Thực hiện giao dịch
-        user_profile["global_balance"] = original_global_balance + total_sell_price
-        
-        items_removed_successfully = 0
-        for _ in range(parsed_quantity):
-            try:
-                inventory_global_list.remove(item_id_to_sell)
-                items_removed_successfully += 1
-            except ValueError:
-                logger.error(f"Lỗi logic khi xóa '{item_id_to_sell}' khỏi inventory_global của user {author_id}. Hoàn tiền đã cộng.", exc_info=True)
-                user_profile["global_balance"] = original_global_balance # Hoàn tác việc cộng tiền
-                save_economy_data(economy_data) 
-                await try_send(ctx, content=f"{ICON_ERROR} Có lỗi xảy ra khi xóa vật phẩm khỏi túi đồ. Giao dịch đã được hủy bỏ.")
-                return
+        original_local_earned = server_data["local_balance"].get("earned", 0)
+        server_data["local_balance"]["earned"] = original_local_earned + total_sell_price
         
         save_economy_data(economy_data)
 
-        logger.info(f"User {ctx.author.display_name} ({author_id}) đã bán {parsed_quantity} x '{item_name_display}' (ID: {item_id_to_sell}) "
-                    f"thu về {total_sell_price:,} {CURRENCY_SYMBOL}. "
-                    f"Ví Toàn Cục: {original_global_balance:,} -> {user_profile['global_balance']:,}.")
+        logger.info(f"Guild: {ctx.guild.name} ({guild_id}) - User: {ctx.author.display_name} ({author_id}) đã bán {parsed_quantity} x '{item_name_display}'. "
+                    f"Nguồn: {items_removed_from_local} từ local, {items_removed_from_global} từ global. "
+                    f"Thu về: {total_sell_price:,} {CURRENCY_SYMBOL} vào Ví Local (Earned).")
         
-        await try_send(ctx, content=f"{ICON_SUCCESS} Bạn đã bán thành công **{parsed_quantity} {item_name_display}** và nhận được **{total_sell_price:,}** {CURRENCY_SYMBOL} vào Ví Toàn Cục! {ICON_MONEY_BAG} Ví Toàn Cục: {user_profile['global_balance']:,}")
-        logger.debug(f"Lệnh 'sell' cho {ctx.author.name} (bán {parsed_quantity} {item_name_display}) đã xử lý xong.")
+        await try_send(ctx, content=f"{ICON_SUCCESS} Bạn đã bán thành công **{parsed_quantity} {item_name_display}** và nhận được **{total_sell_price:,}** {CURRENCY_SYMBOL} vào Ví Local (Earned)!")
 
 def setup(bot: commands.Bot):
     bot.add_cog(SellCommandCog(bot))
