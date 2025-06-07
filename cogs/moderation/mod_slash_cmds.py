@@ -3,7 +3,7 @@ from nextcord.ext import commands, application_checks
 import logging
 
 from core.utils import check_is_bot_moderator_interaction
-from core.icons import ICON_ADMIN_PANEL, ICON_SUCCESS, ICON_INFO
+from core.icons import ICON_ADMIN_PANEL, ICON_SUCCESS, ICON_INFO, ICON_ERROR
 
 logger = logging.getLogger(__name__)
 
@@ -12,11 +12,13 @@ class ModSlashCommandsCog(commands.Cog, name="Moderator Slash Commands"):
         self.bot = bot
         logger.info(f"{ICON_INFO} ModSlashCommandsCog initialized.")
 
-    mod = nextcord.SlashCommandGroup(
-        "mod", 
-        "Các công cụ dành cho Moderator của Ecoworld",
+    @nextcord.slash_command(
+        name="mod", 
+        description="Các công cụ dành cho Moderator của Ecoworld",
         default_member_permissions=nextcord.Permissions(manage_guild=True)
     )
+    async def mod(self, interaction: nextcord.Interaction):
+        pass
 
     @mod.subcommand(name="ping", description="Kiểm tra xem bạn có quyền Moderator không.")
     @application_checks.check(check_is_bot_moderator_interaction)
