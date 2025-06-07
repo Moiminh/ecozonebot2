@@ -1,3 +1,4 @@
+# bot/core/utils.py
 import nextcord
 from nextcord.ext import commands
 from datetime import datetime, timedelta
@@ -69,16 +70,24 @@ async def try_send(target, content=None, embed=None, ephemeral=False):
 async def is_bot_moderator(ctx: commands.Context) -> bool:
     try:
         if await ctx.bot.is_owner(ctx.author):
-            utils_logger.debug(f"is_bot_moderator check: User {ctx.author.id} là owner.")
             return True
     except Exception as e_owner_check:
         utils_logger.error(f"Lỗi khi kiểm tra is_owner: {e_owner_check}", exc_info=True)
     try:
         moderator_ids = load_moderator_ids()
         if ctx.author.id in moderator_ids:
-            utils_logger.debug(f"is_bot_moderator check: User {ctx.author.id} có trong danh sách moderator.")
             return True
     except Exception as e_load_mods:
         utils_logger.error(f"Lỗi khi tải danh sách moderator: {e_load_mods}", exc_info=True)
-    utils_logger.debug(f"is_bot_moderator check: User {ctx.author.id} không có quyền.")
     return False
+
+def format_large_number(num):
+    if abs(num) < 1000:
+        return str(num)
+    if abs(num) < 1_000_000:
+        return f"{num / 1000:.1f}k".replace(".0", "")
+    if abs(num) < 1_000_000_000:
+        return f"{num / 1_000_000:.2f}M".replace(".00", "")
+    if abs(num) < 1_000_000_000_000:
+        return f"{num / 1_000_000_000:.2f}B".replace(".00", "")
+    return f"{num / 1_000_000_000_000:.2f}T".replace(".00", "")
