@@ -1,9 +1,50 @@
 {
-  "users": {},
-  "guild_configs": {},
-  "global_shop_stock": {},
+  "users": {
+    "USER_ID_EXAMPLE": {
+      "global_balance": 0,
+      "inventory_global": [],
+      "level_global": 1,
+      "xp_global": 0,
+      "rebirths": 0,
+      "server_data": {
+        "GUILD_ID_EXAMPLE": {
+          "local_balance": {
+            "earned": 100,
+            "admin_added": 0
+          },
+          "inventory_local": [],
+          "level_local": 1,
+          "xp_local": 0
+        }
+      },
+      "last_work_global": 0,
+      "last_daily_global": 0,
+      "last_beg_global": 0,
+      "last_rob_global": 0,
+      "last_crime_global": 0,
+      "last_fish_global": 0,
+      "last_slots_global": 0,
+      "last_cf_global": 0,
+      "last_dice_global": 0,
+      "preferred_language": "vi"
+    }
+  },
+  "guild_configs": {
+    "GUILD_ID_EXAMPLE": {
+      "bare_command_active_channels": [],
+      "muted_channels": [],
+      "active_events": {}
+    }
+  },
+  "global_shop_stock": {
+    "laptop": {
+        "current_stock": 10,
+        "max_stock": 10,
+        "base_price": 1000
+    }
+  },
   "bot_metadata": {
-    "data_structure_version": "Ecoworld_v1.0_Earned_Admin_Split",
-    "notes": "Hệ thống kinh tế Ecoworld với Ví Local (earned/admin-added) và Ví Global."
+    "data_structure_version": "Ecoworld_LoGlo_v1.0",
+    "notes": "Hệ thống kinh tế Ecoworld với Ví Local (earned/admin-added) và Ví Global (GOL)."
   }
 }
