@@ -121,6 +121,71 @@ class ModToolsSlashCog(commands.Cog, name="Moderator Slash Tools"):
         except Exception as e:
             logger.error(f"Lỗi trong lệnh /mod view_user: {e}", exc_info=True)
             await interaction.followup.send(f"{ICON_ERROR} Đã xảy ra lỗi khi truy xuất dữ liệu.", ephemeral=True)
+# --- LỆNH CON MỚI: /mod set balance ---
+    @set_group.subcommand(name="balance", description="Thiết lập số dư tiền tệ cho một người dùng.")
+    @application_checks.check(check_is_bot_moderator_interaction)
+    async def set_balance(
+        self,
+        interaction: nextcord.Interaction,
+        user: nextcord.User = nextcord.SlashOption(
+            name="user",
+            description="Người dùng cần chỉnh sửa.",
+            required=True,
+        ),
+        balance_type: str = nextcord.SlashOption(
+            name="type",
+            description="Loại số dư muốn thay đổi.",
+            required=True,
+            choices={"Tiền Sạch (earned)": "earned", "Tiền Lậu (adadd)": "adadd", "Bank (global)": "bank"}
+        ),
+        amount: int = nextcord.SlashOption(
+            name="amount",
+            description="Số tiền muốn thiết lập (số âm sẽ được đặt về 0).",
+            required=True
+        )
+    ):
+        """Thiết lập số dư cho một người dùng."""
+        await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.guild:
+            await interaction.followup.send(f"{ICON_ERROR} Vui lòng dùng lệnh này trong một server.", ephemeral=True)
+            return
+
+        final_amount = max(0, amount) # Đảm bảo số tiền không phải là số âm
+        
+        try:
+            economy_data = load_economy_data()
+            global_profile = get_or_create_global_user_profile(economy_data, user.id)
+            
+            original_value = 0
+            
+            if balance_type == "bank":
+                original_value = global_profile.get("bank_balance", 0)
+                global_profile["bank_balance"] = final_amount
+                icon = ICON_BANK
+            else: # earned hoặc adadd
+                local_data = get_or_create_user_local_data(global_profile, interaction.guild.id)
+                original_value = local_data["local_balance"].get(balance_type, 0)
+                local_data["local_balance"][balance_type] = final_amount
+                icon = ICON_TIEN_SACH if balance_type == "earned" else ICON_TIEN_LAU
+
+            save_economy_data(economy_data)
+
+            logger.info(f"MODERATOR ACTION: {interaction.user.id} đã set balance '{balance_type}' của {user.id} thành {final_amount}.")
+
+            await interaction.followup.send(
+                f"{ICON_SUCCESS} Đã cập nhật thành công!\n"
+                f"  - **Người dùng:** {user.mention}\n"
+                f"  - **Loại số dư:** `{balance_type.capitalize()}` {icon}\n"
+                f"  - **Giá trị cũ:** `{format_large_number(original_value)}`\n"
+                f"  - **Giá trị mới:** `{format_large_number(final_amount)}`",
+                ephemeral=True
+            )
+
+        except Exception as e:
+            logger.error(f"Lỗi trong lệnh /mod set balance: {e}", exc_info=True)
+            await interaction.followup.send(f"{ICON_ERROR} Đã xảy ra lỗi khi cập nhật dữ liệu.", ephemeral=True)
+
 
 
 def setup(bot: commands.Bot):
