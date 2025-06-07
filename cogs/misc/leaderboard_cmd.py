@@ -1,37 +1,33 @@
-# bot/cogs/misc/leaderboard_cmd.py
 import nextcord
 from nextcord.ext import commands
-import math 
-import logging 
+import math
+import logging
 
-from core.database import load_data
-from core.utils import try_send 
+from core.database import load_economy_data
+from core.utils import try_send
 from core.config import CURRENCY_SYMBOL
-from core.icons import ICON_LEADERBOARD, ICON_INFO, ICON_MONEY_BAG, ICON_PROFILE, ICON_ERROR 
+from core.icons import ICON_LEADERBOARD, ICON_INFO, ICON_MONEY_BAG, ICON_PROFILE, ICON_ERROR, ICON_WARNING
 
-logger = logging.getLogger(__name__) 
+logger = logging.getLogger(__name__)
 
 ITEMS_PER_PAGE = 10
 
 class LeaderboardView(nextcord.ui.View):
-    def __init__(self, *, sorted_users_data: list, original_author: nextcord.User, bot_instance: commands.Bot, initial_guild_name: str): # Thêm initial_guild_name
-        super().__init__(timeout=180) 
+    def __init__(self, *, sorted_users_data: list, original_author: nextcord.User, bot_instance: commands.Bot, guild_name: str):
+        super().__init__(timeout=180)
         self.sorted_users_data = sorted_users_data
         self.original_author = original_author
         self.bot = bot_instance
-        self.initial_guild_name = initial_guild_name # Lưu lại tên server
-        
+        self.guild_name = guild_name
         self.current_page = 1
         self.total_pages = math.ceil(len(self.sorted_users_data) / ITEMS_PER_PAGE)
-        self.message = None 
-        logger.debug(f"LeaderboardView initialized for {original_author.name} in guild '{initial_guild_name}'. Total pages: {self.total_pages}")
+        self.message = None
 
-        # ... (Phần khởi tạo các nút bấm giữ nguyên) ...
-        self.first_page_button = nextcord.ui.Button(label="⏪ Về đầu", style=nextcord.ButtonStyle.blurple, custom_id="lb_first")
-        self.prev_page_button = nextcord.ui.Button(label="◀️ Trước", style=nextcord.ButtonStyle.primary, custom_id="lb_prev")
-        self.page_indicator_button = nextcord.ui.Button(label=f"Trang {self.current_page}/{self.total_pages}", style=nextcord.ButtonStyle.secondary, disabled=True, custom_id="lb_page_indicator")
-        self.next_page_button = nextcord.ui.Button(label="▶️ Sau", style=nextcord.ButtonStyle.primary, custom_id="lb_next")
-        self.last_page_button = nextcord.ui.Button(label="⏩ Đến cuối", style=nextcord.ButtonStyle.blurple, custom_id="lb_last")
+        self.first_page_button = nextcord.ui.Button(label="⏪", style=nextcord.ButtonStyle.blurple)
+        self.prev_page_button = nextcord.ui.Button(label="◀️", style=nextcord.ButtonStyle.primary)
+        self.page_indicator_button = nextcord.ui.Button(style=nextcord.ButtonStyle.secondary, disabled=True)
+        self.next_page_button = nextcord.ui.Button(label="▶️", style=nextcord.ButtonStyle.primary)
+        self.last_page_button = nextcord.ui.Button(label="⏩", style=nextcord.ButtonStyle.blurple)
 
         self.first_page_button.callback = self.go_to_first_page
         self.prev_page_button.callback = self.go_to_previous_page
@@ -43,164 +39,144 @@ class LeaderboardView(nextcord.ui.View):
         self.add_item(self.page_indicator_button)
         self.add_item(self.next_page_button)
         self.add_item(self.last_page_button)
-
         self._update_button_states()
 
-
     def _update_button_states(self):
-        # ... (Giữ nguyên) ...
         self.page_indicator_button.label = f"Trang {self.current_page}/{self.total_pages}"
+        is_first_page = self.current_page == 1
+        is_last_page = self.current_page >= self.total_pages
+        
+        self.first_page_button.disabled = is_first_page
+        self.prev_page_button.disabled = is_first_page
+        self.next_page_button.disabled = is_last_page
+        self.last_page_button.disabled = is_last_page
         if self.total_pages <= 1:
-            self.first_page_button.disabled = True
-            self.prev_page_button.disabled = True
-            self.next_page_button.disabled = True
-            self.last_page_button.disabled = True
-        else:
-            self.first_page_button.disabled = (self.current_page == 1)
-            self.prev_page_button.disabled = (self.current_page == 1)
-            self.next_page_button.disabled = (self.current_page == self.total_pages)
-            self.last_page_button.disabled = (self.current_page == self.total_pages)
+            for item in self.children: item.disabled = True
 
     async def generate_embed_for_current_page(self) -> nextcord.Embed:
-        # ... (Phần tạo embed giữ nguyên, chỉ sửa title một chút) ...
-        logger.debug(f"Generating leaderboard embed for page {self.current_page} in guild '{self.initial_guild_name}'")
         start_index = (self.current_page - 1) * ITEMS_PER_PAGE
         end_index = start_index + ITEMS_PER_PAGE
         
         embed = nextcord.Embed(
-            title=f"{ICON_LEADERBOARD} Bảng Xếp Hạng Giàu Nhất - {self.initial_guild_name}", # Sử dụng tên server đã lưu
+            title=f"{ICON_LEADERBOARD} Bảng Xếp Hạng Server - {self.guild_name}",
             color=nextcord.Color.gold()
         )
-        # ... (phần còn lại của generate_embed_for_current_page giữ nguyên) ...
         description_parts = []
         rank_display = start_index + 1
 
-        if not self.sorted_users_data:
-             embed.description = f"{ICON_INFO} Không có ai trên bảng xếp hạng."
-        else:
-            for user_id_str, user_data_dict in self.sorted_users_data[start_index:end_index]:
-                try:
-                    user_obj = await self.bot.fetch_user(int(user_id_str))
-                    total_wealth = user_data_dict.get('balance', 0) + user_data_dict.get('bank_balance', 0)
-                    description_parts.append(f"{rank_display}. {user_obj.name} - {ICON_MONEY_BAG} **{total_wealth:,}** {CURRENCY_SYMBOL}")
-                    rank_display += 1
-                except (nextcord.NotFound, ValueError, KeyError) as e:
-                    logger.warning(f"Leaderboard View: Không thể fetch/xử lý user ID {user_id_str} cho trang {self.current_page}. Lỗi: {e}")
-                    description_parts.append(f"{rank_display}. *{ICON_WARNING} Không thể tải thông tin user ID: {user_id_str}*")
-                    rank_display +=1
-                    continue
-            
-            if not description_parts:
-                embed.description = f"{ICON_INFO} Không có dữ liệu cho trang này."
-            else:
-                embed.description = "\n".join(description_parts)
+        for user_id_str, local_wealth in self.sorted_users_data[start_index:end_index]:
+            try:
+                user_obj = await self.bot.fetch_user(int(user_id_str))
+                description_parts.append(f"{rank_display}. {user_obj.name} - {ICON_MONEY_BAG} **{local_wealth:,}** {CURRENCY_SYMBOL}")
+                rank_display += 1
+            except nextcord.NotFound:
+                description_parts.append(f"{rank_display}. *User không tồn tại (ID: {user_id_str})*")
+                rank_display += 1
+            except Exception as e:
+                logger.error(f"Leaderboard View: Lỗi khi fetch user ID {user_id_str}:", exc_info=True)
+                description_parts.append(f"{rank_display}. *Lỗi tải user ID: {user_id_str}*")
+                rank_display += 1
 
-        embed.set_footer(text=f"Yêu cầu bởi {self.original_author.display_name}")
+        if not description_parts:
+             embed.description = f"{ICON_INFO} Không có dữ liệu cho trang này."
+        else:
+            embed.description = "\n".join(description_parts)
+
+        embed.set_footer(text=f"Xếp hạng dựa trên tổng Ví Local. Yêu cầu bởi {self.original_author.display_name}")
         return embed
 
-
     async def update_message(self, interaction: nextcord.Interaction):
-        # --- THÊM LOG INFO KHI CHUYỂN TRANG ---
-        logger.info(f"User {interaction.user.display_name} ({interaction.user.id}) xem trang {self.current_page}/{self.total_pages} của leaderboard trong guild '{self.initial_guild_name}'.")
-        # ------------------------------------
         self._update_button_states()
         new_embed = await self.generate_embed_for_current_page()
-        try:
-            await interaction.response.edit_message(embed=new_embed, view=self)
-            logger.debug(f"Leaderboard message edited successfully for page {self.current_page}.")
-        except nextcord.HTTPException as e:
-            logger.error(f"Lỗi HTTP khi edit leaderboard message: {e}", exc_info=True)
-        except Exception as e:
-            logger.error(f"Lỗi không xác định khi edit leaderboard message: {e}", exc_info=True)
+        await interaction.response.edit_message(embed=new_embed, view=self)
 
-    # ... (interaction_check, go_to_first_page, go_to_previous_page, go_to_next_page, go_to_last_page giữ nguyên) ...
-    async def interaction_check(self, interaction: nextcord.Interaction) -> bool: # Giữ nguyên
+    async def interaction_check(self, interaction: nextcord.Interaction) -> bool:
         if interaction.user.id != self.original_author.id:
-            logger.warning(f"User {interaction.user.id} ({interaction.user.name}) cố gắng tương tác với leaderboard của {self.original_author.id}")
             await interaction.response.send_message(f"{ICON_ERROR} Bạn không phải là người yêu cầu bảng xếp hạng này!", ephemeral=True)
             return False
         return True
-    async def go_to_first_page(self, interaction: nextcord.Interaction): # Giữ nguyên, update_message sẽ log
-        self.current_page = 1
-        await self.update_message(interaction)
-    async def go_to_previous_page(self, interaction: nextcord.Interaction): # Giữ nguyên
-        if self.current_page > 1: self.current_page -= 1
-        await self.update_message(interaction)
-    async def go_to_next_page(self, interaction: nextcord.Interaction): # Giữ nguyên
-        if self.current_page < self.total_pages: self.current_page += 1
-        await self.update_message(interaction)
-    async def go_to_last_page(self, interaction: nextcord.Interaction): # Giữ nguyên
-        self.current_page = self.total_pages
-        await self.update_message(interaction)
 
-    async def on_timeout(self): # Giữ nguyên, đã có logger.info
-        logger.info(f"Leaderboard View cho {self.original_author.name} trong guild '{self.initial_guild_name}' đã hết hạn (timeout).")
-        if self.message: 
-            for item in self.children: item.disabled = True 
+    async def go_to_first_page(self, interaction: nextcord.Interaction): await self.go_to_page(interaction, 1)
+    async def go_to_previous_page(self, interaction: nextcord.Interaction): await self.go_to_page(interaction, self.current_page - 1)
+    async def go_to_next_page(self, interaction: nextcord.Interaction): await self.go_to_page(interaction, self.current_page + 1)
+    async def go_to_last_page(self, interaction: nextcord.Interaction): await self.go_to_page(interaction, self.total_pages)
+    
+    async def go_to_page(self, interaction: nextcord.Interaction, page_num: int):
+        self.current_page = max(1, min(page_num, self.total_pages))
+        logger.info(f"User {interaction.user.display_name} xem trang {self.current_page}/{self.total_pages} của leaderboard server '{self.guild_name}'.")
+        await self.update_message(interaction)
+        
+    async def on_timeout(self):
+        if self.message:
+            for item in self.children: item.disabled = True
             try:
                 current_embed = self.message.embeds[0] if self.message.embeds else None
                 await self.message.edit(embed=current_embed, view=self) 
-                logger.debug("Đã vô hiệu hóa các nút trên Leaderboard View do timeout.")
-            except nextcord.NotFound: logger.warning("Leaderboard View Timeout: Không tìm thấy tin nhắn để edit.")
-            except nextcord.HTTPException as e: logger.error(f"Leaderboard View Timeout: Lỗi HTTP khi edit tin nhắn: {e}", exc_info=True)
+            except Exception as e: logger.warning(f"Leaderboard Timeout: Lỗi khi vô hiệu hóa nút:", exc_info=True)
 
 class LeaderboardCommandCog(commands.Cog, name="Leaderboard Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info(f"{ICON_INFO} LeaderboardCommandCog initialized.") # Đổi sang INFO
+        logger.debug("LeaderboardCommandCog initialized for Ecoworld Economy.")
 
-    @commands.command(name='leaderboard', aliases=['lb', 'top'])
-    async def leaderboard(self, ctx: commands.Context):
-        logger.debug(f"Lệnh 'leaderboard' được gọi bởi {ctx.author.name} (ID: {ctx.author.id}) tại guild {ctx.guild.id}.")
-        # ... (code lấy data, guild_user_data, sorted_users_with_data giữ nguyên) ...
-        data = load_data(); guild_id = str(ctx.guild.id)
-        if guild_id not in data or not data[guild_id] or all(key == "config" for key in data[guild_id]):
-            logger.info(f"Không có dữ liệu leaderboard cho guild {ctx.guild.name} ({guild_id}). Yêu cầu từ {ctx.author.name}.")
-            await try_send(ctx, content=f"{ICON_INFO} Hiện tại chưa có ai trên bảng xếp hạng của server này!")
-            return
-        guild_user_data = {uid: udata for uid, udata in data[guild_id].items() if uid != "config" and isinstance(udata, dict) and ("balance" in udata or "bank_balance" in udata)}
-        if not guild_user_data: 
-            logger.info(f"Không có user data hợp lệ cho leaderboard guild {ctx.guild.name} ({guild_id}). Yêu cầu từ {ctx.author.name}.")
-            await try_send(ctx, content=f"{ICON_INFO} Hiện tại chưa có ai trên bảng xếp hạng của server này!")
-            return
-        sorted_users_with_data = sorted(guild_user_data.items(), key=lambda item: item[1].get('balance', 0) + item[1].get('bank_balance', 0), reverse=True)
-        if not sorted_users_with_data: 
-            logger.info(f"Không có user nào sau khi sắp xếp cho leaderboard guild {ctx.guild.name} ({guild_id}). Yêu cầu từ {ctx.author.name}.")
-            await try_send(ctx, content=f"{ICON_INFO} Không có ai để xếp hạng!")
+    @commands.command(name='leaderboard', aliases=['lb', 'top', 'serverlb'])
+    async def server_leaderboard(self, ctx: commands.Context):
+        if not ctx.guild:
+            await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
             return
 
-        # Phần tìm và thông báo thứ hạng của người dùng (giữ nguyên)
-        user_rank_message = None; author_id_str = str(ctx.author.id)
-        user_rank_found_for_log = "không tìm thấy"
-        for i, (user_id_str_loop, user_data_dict) in enumerate(sorted_users_with_data):
-            if user_id_str_loop == author_id_str:
-                user_rank = i + 1
-                user_total_wealth = user_data_dict.get('balance', 0) + user_data_dict.get('bank_balance', 0)
-                user_rank_message = f"{ICON_PROFILE} {ctx.author.mention}, bạn đang ở **hạng #{user_rank}** với tổng tài sản là **{user_total_wealth:,}** {CURRENCY_SYMBOL}."
-                user_rank_found_for_log = f"hạng {user_rank} với {user_total_wealth:,} {CURRENCY_SYMBOL}"
-                break 
-        if user_rank_message is None: 
-            user_rank_message = f"{ICON_INFO} {ctx.author.mention}, bạn hiện chưa có mặt trên bảng xếp hạng. Hãy cố gắng kiếm thêm {CURRENCY_SYMBOL} nhé!"
-        await try_send(ctx, content=user_rank_message)
+        logger.info(f"Lệnh 'leaderboard' (server) được gọi bởi {ctx.author.name} tại guild '{ctx.guild.name}'.")
+        await ctx.message.add_reaction("⏳")
         
-        # --- THÊM LOG INFO KHI LỆNH LEADERBOARD ĐƯỢC GỌI THÀNH CÔNG ---
-        logger.info(f"User {ctx.author.display_name} ({ctx.author.id}) đã xem leaderboard của guild '{ctx.guild.name}'. Thứ hạng cá nhân: {user_rank_found_for_log}.")
-        # -------------------------------------------------------------
+        economy_data = load_economy_data()
+        all_users_data = economy_data.get("users", {})
+        
+        if not all_users_data:
+            await try_send(ctx, content=f"{ICON_INFO} Chưa có người dùng nào trong hệ thống để xếp hạng.")
+            return
 
-        view = LeaderboardView(
-            sorted_users_data=sorted_users_with_data, 
-            original_author=ctx.author, 
-            bot_instance=self.bot,
-            initial_guild_name=str(ctx.guild.name) # Truyền tên server vào View
-        )
+        guild_member_ids = {str(member.id) for member in ctx.guild.members}
+        user_wealth_list = []
+        for user_id, user_profile in all_users_data.items():
+            if user_id in guild_member_ids:
+                if isinstance(user_profile, dict) and "server_data" in user_profile:
+                    server_data = user_profile.get("server_data", {}).get(str(ctx.guild.id))
+                    if server_data and isinstance(server_data.get("local_balance"), dict):
+                        local_balance = server_data.get("local_balance", {})
+                        total_local_wealth = local_balance.get("earned", 0) + local_balance.get("admin_added", 0)
+                        user_wealth_list.append((user_id, total_local_wealth))
+
+        sorted_users = sorted(user_wealth_list, key=lambda x: x[1], reverse=True)
+        
+        await ctx.message.remove_reaction("⏳", self.bot.user)
+
+        if not sorted_users:
+            await try_send(ctx, content=f"{ICON_INFO} Không có ai trong server này có dữ liệu Ví Local để xếp hạng!")
+            return
+
+        user_rank_message = f"{ICON_INFO} Bảng xếp hạng server này dựa trên tổng số tiền trong **Ví Local**."
+        author_local_wealth = 0
+        rank_found = False
+        for i, (user_id, wealth) in enumerate(sorted_users):
+            if str(ctx.author.id) == user_id:
+                user_rank = i + 1
+                author_local_wealth = wealth
+                user_rank_message = f"{ICON_PROFILE} {ctx.author.mention}, bạn đang ở **hạng #{user_rank}** trên bảng xếp hạng server này với tổng Ví Local là **{author_local_wealth:,}** {CURRENCY_SYMBOL}."
+                rank_found = True
+                break
+        if not rank_found:
+             user_rank_message = f"{ICON_INFO} {ctx.author.mention}, bạn hiện chưa có mặt trên bảng xếp hạng server này."
+
+        await try_send(ctx, content=user_rank_message)
+
+        view = LeaderboardView(sorted_users_data=sorted_users, original_author=ctx.author, bot_instance=self.bot, guild_name=str(ctx.guild.name))
         initial_embed = await view.generate_embed_for_current_page()
         
         try:
             sent_message = await ctx.send(embed=initial_embed, view=view)
-            view.message = sent_message 
-            logger.debug(f"Leaderboard ban đầu đã được gửi cho {ctx.author.name}.")
+            view.message = sent_message
         except nextcord.HTTPException as e:
-            logger.error(f"Lỗi khi gửi tin nhắn leaderboard ban đầu cho {ctx.author.name}: {e}", exc_info=True)
+            logger.error(f"Lỗi khi gửi tin nhắn leaderboard ban đầu:", exc_info=True)
             await ctx.send(f"{ICON_ERROR} Không thể hiển thị bảng xếp hạng lúc này.")
 
 def setup(bot: commands.Bot):
