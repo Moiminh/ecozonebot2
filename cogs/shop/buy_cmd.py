@@ -1,120 +1,107 @@
+# bot/cogs/shop/buy_cmd.py
 import nextcord
 from nextcord.ext import commands
 import logging
 
 from core.database import (
     load_economy_data,
+    save_economy_data,
     get_or_create_global_user_profile,
-    get_or_create_global_shop_stock,
-    get_shop_item_details_from_stock,
-    update_shop_item_stock,
-    save_economy_data
+    get_or_create_user_local_data
 )
 from core.utils import try_send
-from core.config import CURRENCY_SYMBOL, SHOP_ITEMS as MASTER_ITEM_LIST, COMMAND_PREFIX
-from core.icons import ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_MONEY_BAG, ICON_INFO
+from core.config import SHOP_ITEMS
+from core.icons import (
+    ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_MONEY_BAG,
+    ICON_TIEN_LAU, ICON_GLOBAL, ICON_LOCAL
+)
 
 logger = logging.getLogger(__name__)
 
 class BuyCommandCog(commands.Cog, name="Buy Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.debug(f"BuyCommandCog initialized for Ecoworld Economy.")
+        logger.info("BuyCommandCog (v2) initialized.")
 
     @commands.command(name='buy')
-    async def buy(self, ctx: commands.Context, item_name: str, quantity: int = 1):
+    async def buy(self, ctx: commands.Context, item_id: str, quantity: int = 1):
+        """Mua một vật phẩm từ cửa hàng."""
         if not ctx.guild:
             await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
             return
 
         author_id = ctx.author.id
-        guild_name_for_log = ctx.guild.name
-        
-        logger.debug(f"Lệnh 'buy' được gọi bởi {ctx.author.name} ({author_id}) với item_name='{item_name}', quantity={quantity} tại guild '{guild_name_for_log}'.")
+        guild_id = ctx.guild.id
+        item_id_to_buy = item_id.lower().strip().replace(" ", "_")
 
+        # --- Kiểm tra đầu vào ---
         if quantity <= 0:
             await try_send(ctx, content=f"{ICON_ERROR} Số lượng mua phải lớn hơn 0.")
             return
-
-        parts = item_name.split()
-        processed_item_name = item_name 
-        parsed_quantity = quantity      
-        if quantity == 1 and len(parts) > 1:
-            try:
-                first_word_as_int = int(parts[0])
-                parsed_quantity = first_word_as_int
-                processed_item_name = " ".join(parts[1:])
-            except ValueError:
-                processed_item_name = item_name 
         
-        item_id_to_buy = processed_item_name.lower().strip().replace(" ", "_")
-        item_name_display = item_id_to_buy.replace("_", " ").capitalize()
-
-        if not item_id_to_buy:
-             await try_send(ctx, content=f"{ICON_WARNING} Vui lòng nhập tên vật phẩm bạn muốn mua.")
-             return
-
-        if parsed_quantity <= 0:
-            await try_send(ctx, content=f"{ICON_ERROR} Số lượng mua phải lớn hơn 0.")
+        if item_id_to_buy not in SHOP_ITEMS:
+            await try_send(ctx, content=f"{ICON_ERROR} Vật phẩm `{item_id}` không tồn tại trong cửa hàng.")
             return
 
-        if item_id_to_buy not in MASTER_ITEM_LIST:
-            await try_send(ctx, content=f"{ICON_ERROR} Vật phẩm `{item_name_display}` không tồn tại trong danh mục cửa hàng.")
-            return
-        
-        economy_data = load_economy_data()
-        user_profile = get_or_create_global_user_profile(economy_data, author_id)
-        server_data = get_or_create_user_server_data(user_profile, ctx.guild.id)
-        shop_stock = get_or_create_global_shop_stock(economy_data)
-        item_stock_details = get_shop_item_details_from_stock(shop_stock, item_id_to_buy)
+        try:
+            economy_data = load_economy_data()
+            global_profile = get_or_create_global_user_profile(economy_data, author_id)
+            local_data = get_or_create_user_local_data(global_profile, guild_id)
 
-        item_master_details = MASTER_ITEM_LIST[item_id_to_buy]
-        price_per_item = item_master_details["price"]
-        total_price = price_per_item * parsed_quantity
+            item_details = SHOP_ITEMS[item_id_to_buy]
+            price_per_item = item_details.get("price", 0)
+            total_price = price_per_item * quantity
 
-        if item_stock_details is None:
-            await try_send(ctx, content=f"{ICON_INFO} Rất tiếc, vật phẩm `{item_name_display}` hiện không có bán trong cửa hàng toàn cục.")
-            return
+            # --- Kiểm tra số dư ---
+            adadd_balance = local_data["local_balance"]["adadd"]
+            earned_balance = local_data["local_balance"]["earned"]
+            total_local_balance = adadd_balance + earned_balance
 
-        current_stock = item_stock_details.get("current_stock", 0)
-        if current_stock < parsed_quantity:
-             await try_send(ctx, content=f"{ICON_ERROR} Rất tiếc, cửa hàng toàn cục chỉ còn **{current_stock}** {item_name_display}.")
-             return
-        
-        local_balance = server_data.get("local_balance", {})
-        earned_amount = local_balance.get("earned", 0)
-        admin_added_amount = local_balance.get("admin_added", 0)
-        total_local_balance = earned_amount + admin_added_amount
-
-        if total_local_balance < total_price:
-            await try_send(ctx, content=f"{ICON_ERROR} Bạn không đủ tiền trong Ví Local! Bạn cần **{total_price:,}** {CURRENCY_SYMBOL} nhưng chỉ có **{total_local_balance:,}** {CURRENCY_SYMBOL}.")
-            return
+            if total_local_balance < total_price:
+                await try_send(ctx, content=f"{ICON_ERROR} Bạn không đủ tiền trong Ví Local! Bạn cần **{total_price:,}** nhưng chỉ có **{total_local_balance:,}**.")
+                return
             
-        admin_money_spent = min(admin_added_amount, total_price)
-        earned_money_spent = total_price - admin_money_spent
-        
-        server_data["local_balance"]["admin_added"] -= admin_money_spent
-        server_data["local_balance"]["earned"] -= earned_money_spent
-        
-        item_source = "admin_added" if admin_money_spent > 0 else "earned"
-        
-        if item_source == "admin_added":
-            inventory_to_add = server_data.setdefault("inventory_local", [])
-            destination_inventory_name = "Túi Đồ Local"
-        else: 
-            inventory_to_add = user_profile.setdefault("inventory_global", [])
-            destination_inventory_name = "Túi Đồ Toàn Cục (GOL)"
+            # --- Logic trừ tiền thông minh & Gắn cờ vật phẩm bẩn ---
+            adadd_spent = min(adadd_balance, total_price)
+            earned_spent = total_price - adadd_spent
+            
+            local_data["local_balance"]["adadd"] -= adadd_spent
+            local_data["local_balance"]["earned"] -= earned_spent
+            
+            is_tainted = adadd_spent > 0
+            
+            # --- Tạo vật phẩm và thêm vào túi đồ ---
+            new_item_data = {"item_id": item_id_to_buy, "is_tainted": is_tainted}
+            
+            # Vật phẩm "sạch" vào túi global, "bẩn" vào túi local
+            destination_inventory_name = ""
+            if is_tainted:
+                local_data.setdefault("inventory_local", []).extend([new_item_data] * quantity)
+                destination_inventory_name = f"{ICON_LOCAL} Túi Đồ Tại Server"
+            else:
+                global_profile.setdefault("inventory_global", []).extend([new_item_data] * quantity)
+                destination_inventory_name = f"{ICON_GLOBAL} Túi Đồ Toàn Cục"
 
-        for _ in range(parsed_quantity):
-            inventory_to_add.append({"item_id": item_id_to_buy, "source": item_source})
-        
-        update_shop_item_stock(shop_stock, item_id_to_buy, -parsed_quantity)
-        
-        save_economy_data(economy_data)
+            save_economy_data(economy_data)
 
-        logger.info(f"User {ctx.author.display_name} ({author_id}) đã mua {parsed_quantity} x '{item_name_display}' với tổng giá {total_price:,} {CURRENCY_SYMBOL}. Tiêu từ 'admin_added': {admin_money_spent:,}, từ 'earned': {earned_money_spent:,}. Vật phẩm được thêm vào: {destination_inventory_name}.")
-        
-        await try_send(ctx, content=f"{ICON_SUCCESS} Bạn đã mua thành công **{parsed_quantity} {item_name_display}** với tổng giá **{total_price:,}** {CURRENCY_SYMBOL}! Chúng đã được thêm vào **{destination_inventory_name}** của bạn.")
+            item_name_display = item_details.get("description", item_id_to_buy)
+            logger.info(f"User {author_id} đã mua {quantity}x {item_id_to_buy} (tainted={is_tainted}).")
+
+            # --- Gửi thông báo ---
+            msg = (
+                f"{ICON_SUCCESS} Bạn đã mua thành công **{quantity}x {item_name_display}** với giá **{total_price:,}** {ICON_MONEY_BAG}.\n"
+                f"Vật phẩm đã được thêm vào **{destination_inventory_name}** của bạn."
+            )
+            
+            # Gửi cảnh báo nếu mua phải đồ bẩn
+            if is_tainted:
+                msg += f"\n\n> {ICON_WARNING} *Mua bằng tiền không rõ nguồn gốc, giá trị bán lại có thể bị giảm.*"
+
+            await try_send(ctx, content=msg)
+
+        except Exception as e:
+            logger.error(f"Lỗi trong lệnh 'buy' (v2) cho user {author_id}: {e}", exc_info=True)
+            await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi bạn mua hàng.")
 
 def setup(bot: commands.Bot):
     bot.add_cog(BuyCommandCog(bot))
