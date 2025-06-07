@@ -12,16 +12,17 @@ from core.database import (
     get_or_create_user_local_data
 )
 from core.utils import try_send
-from core.config import WORK_COOLDOWN # Lấy cooldown từ file config
+from core.config import WORK_COOLDOWN
+# Import hàm xử lý level up mới
+from core.leveling import check_and_process_levelup
 from core.icons import ICON_LOADING, ICON_WORK, ICON_MONEY_BAG, ICON_ERROR, ICON_TIEN_SACH
 
-# Lấy logger cho module này
 logger = logging.getLogger(__name__)
 
 class WorkCommandCog(commands.Cog, name="Work Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("WorkCommandCog (v2) initialized.")
+        logger.info("WorkCommandCog (v2) - with Leveling - initialized.")
 
     @commands.command(name='work', aliases=['w'])
     async def work(self, ctx: commands.Context):
@@ -34,7 +35,6 @@ class WorkCommandCog(commands.Cog, name="Work Command"):
         guild_id = ctx.guild.id
         
         try:
-            # Tải dữ liệu
             economy_data = load_economy_data()
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
             local_data = get_or_create_user_local_data(global_profile, guild_id)
@@ -59,9 +59,6 @@ class WorkCommandCog(commands.Cog, name="Work Command"):
             global_profile["xp_global"] += xp_earned_global
             global_profile["cooldowns"]["work"] = now
             
-            # Lưu lại toàn bộ dữ liệu
-            save_economy_data(economy_data)
-
             # Gửi thông báo cho người dùng
             total_local_balance = local_data["local_balance"]["earned"] + local_data["local_balance"]["adadd"]
             
@@ -76,6 +73,13 @@ class WorkCommandCog(commands.Cog, name="Work Command"):
                     f"Tổng Ví Local của bạn giờ là: **{total_local_balance:,}** {ICON_MONEY_BAG}"
                 )
             )
+
+            # --- KIỂM TRA LEVEL UP (TÍCH HỢP MỚI) ---
+            await check_and_process_levelup(ctx, local_data, 'local')
+            await check_and_process_levelup(ctx, global_profile, 'global')
+
+            # Lưu lại toàn bộ dữ liệu sau khi đã kiểm tra level up
+            save_economy_data(economy_data)
 
         except Exception as e:
             logger.error(f"Lỗi trong lệnh 'work' (v2) cho user {author_id}: {e}", exc_info=True)
