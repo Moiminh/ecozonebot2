@@ -1,4 +1,3 @@
-# bot/core/utils.py
 import nextcord
 from nextcord.ext import commands
 from datetime import datetime, timedelta
@@ -81,13 +80,24 @@ async def is_bot_moderator(ctx: commands.Context) -> bool:
         utils_logger.error(f"Lỗi khi tải danh sách moderator: {e_load_mods}", exc_info=True)
     return False
 
-def format_large_number(num):
-    if abs(num) < 1000:
-        return str(num)
-    if abs(num) < 1_000_000:
-        return f"{num / 1000:.1f}k".replace(".0", "")
-    if abs(num) < 1_000_000_000:
-        return f"{num / 1_000_000:.2f}M".replace(".00", "")
-    if abs(num) < 1_000_000_000_000:
-        return f"{num / 1_000_000_000:.2f}B".replace(".00", "")
-    return f"{num / 1_000_000_000_000:.2f}T".replace(".00", "")
+async def check_is_bot_moderator_interaction(interaction: nextcord.Interaction) -> bool:
+    if await interaction.client.is_owner(interaction.user):
+        utils_logger.debug(f"Interaction Check: User {interaction.user.id} là owner.")
+        return True
+    try:
+        moderator_ids = load_moderator_ids() 
+        if interaction.user.id in moderator_ids:
+            utils_logger.debug(f"Interaction Check: User {interaction.user.id} là moderator.")
+            return True
+    except Exception as e:
+        utils_logger.error(f"Lỗi khi tải danh sách moderator trong check_is_bot_moderator_interaction: {e}", exc_info=True)
+        return False
+    
+    utils_logger.warning(f"Interaction Check: User {interaction.user.id} không có quyền moderator cho lệnh slash /{interaction.application_command.name}.")
+    try:
+        if not interaction.response.is_done():
+             await interaction.response.send_message(f"{ICON_ERROR} Bạn không có đủ quyền (Moderator/Owner) để sử dụng lệnh này.", ephemeral=True)
+    except Exception as e:
+        utils_logger.error(f"Lỗi gửi tin nhắn từ chối quyền trong check_is_bot_moderator_interaction: {e}")
+        
+    return False
