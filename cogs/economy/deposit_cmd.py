@@ -86,7 +86,21 @@ class DepositCommandCog(commands.Cog, name="Deposit Command"):
 
             logger.info(f"User {author_id} tại guild {guild_id} đã deposit {amount_to_deposit} earned vào Bank, phí {fee}.")
 
-            # Gửi thông báo thành công
+            # --- Thực hiện giao dịch ---
+            local_data["local_balance"]["earned"] -= total_cost
+            global_profile["bank_balance"] += amount_to_deposit
+            
+            # --- CẬP NHẬT MỚI: Logic giảm tội (wanted_level) ---
+            wanted_level = global_profile.get("wanted_level", 0.0)
+            reduction_amount = (amount_to_deposit / LAUNDER_EXCHANGE_RATE) * 0.5 # Giảm 0.5 điểm cho mỗi 1 bank "sạch" được tạo ra
+            new_wanted_level = max(0.0, wanted_level - reduction_amount)
+            global_profile["wanted_level"] = new_wanted_level
+            
+            # Lưu lại dữ liệu
+            save_economy_data(economy_data)
+
+            logger.info(f"User {author_id} đã deposit {amount_to_deposit} earned. Wanted level: {wanted_level:.2f} -> {new_wanted_level:.2f}.")
+
             new_bank_balance = global_profile["bank_balance"]
             new_earned_balance = local_data["local_balance"]["earned"]
             await try_send(
