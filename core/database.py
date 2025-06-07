@@ -1,4 +1,3 @@
-# bot/core/database.py
 import json
 import os
 import logging
@@ -54,9 +53,7 @@ DEFAULT_ECONOMY_STRUCTURE = {
 
 def load_economy_data() -> dict:
     path_to_file = config.ECONOMY_FILE
-    logger.debug(f"Đang tải dữ liệu kinh tế từ: {path_to_file}")
     if not os.path.exists(path_to_file):
-        logger.warning(f"File {path_to_file} không tồn tại. Tạo file mới với cấu trúc mặc định.")
         data = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in DEFAULT_ECONOMY_STRUCTURE.items()}
         save_economy_data(data)
         return data
@@ -64,7 +61,6 @@ def load_economy_data() -> dict:
         with open(path_to_file, 'r', encoding='utf-8') as f:
             content = f.read()
             if not content.strip():
-                logger.warning(f"File {path_to_file} trống. Khởi tạo với cấu trúc mặc định.")
                 data = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in DEFAULT_ECONOMY_STRUCTURE.items()}
                 save_economy_data(data)
                 return data
@@ -72,16 +68,13 @@ def load_economy_data() -> dict:
             data_changed_structure = False
             for key, default_value in DEFAULT_ECONOMY_STRUCTURE.items():
                 if key not in loaded_data:
-                    logger.info(f"Key chính '{key}' không tồn tại trong {path_to_file}. Đang thêm key mặc định.")
                     loaded_data[key] = default_value.copy() if isinstance(default_value, (dict, list)) else default_value
                     data_changed_structure = True
             if data_changed_structure:
-                logger.info(f"Đã thêm các key chính còn thiếu vào {path_to_file}. Tiến hành lưu.")
                 save_economy_data(loaded_data)
-            logger.debug(f"Dữ liệu từ {path_to_file} đã tải thành công.")
             return loaded_data
     except json.JSONDecodeError:
-        logger.error(f"LỖI JSONDecodeError: File {path_to_file} bị lỗi JSON. Tạo file mới.", exc_info=True)
+        logger.error(f"LỖI JSONDecodeError: File {path_to_file} bị lỗi. Tạo file mới.", exc_info=True)
         data = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in DEFAULT_ECONOMY_STRUCTURE.items()}
         save_economy_data(data)
         return data
@@ -92,24 +85,21 @@ def load_economy_data() -> dict:
 def save_economy_data(data: dict):
     path_to_file = config.ECONOMY_FILE
     temp_path_to_file = path_to_file + ".tmp"
-    logger.debug(f"Chuẩn bị lưu dữ liệu kinh tế vào: {path_to_file}")
     try:
         with open(temp_path_to_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
         os.replace(temp_path_to_file, path_to_file)
-        logger.debug(f"Dữ liệu đã được lưu thành công vào {path_to_file}.")
     except Exception as e:
-        logger.error(f"Lỗi khi lưu dữ liệu kinh tế vào {path_to_file}: {e}", exc_info=True)
+        logger.error(f"Lỗi khi lưu dữ liệu vào {path_to_file}: {e}", exc_info=True)
         if os.path.exists(temp_path_to_file):
             try:
                 os.remove(temp_path_to_file)
-                logger.debug(f"Đã xóa file tạm {temp_path_to_file} sau lỗi lưu.")
             except Exception as e_remove:
                 logger.error(f"Không thể xóa file tạm {temp_path_to_file}: {e_remove}")
 
 def get_or_create_global_user_profile(data: dict, user_id: int) -> dict:
     user_id_str = str(user_id)
-    if "users" not in data or not isinstance(data.get("users"), dict): data["users"] = {}
+    if not isinstance(data.get("users"), dict): data["users"] = {}
     
     if user_id_str not in data["users"] or not isinstance(data["users"][user_id_str], dict):
         data["users"][user_id_str] = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in DEFAULT_GLOBAL_USER_PROFILE.items()}
@@ -153,6 +143,14 @@ def get_or_create_user_server_data(global_user_profile: dict, guild_id: int) -> 
              
     return global_user_profile["server_data"][guild_id_str]
 
+def get_server_bank_balance(global_user_profile: dict, guild_id: int) -> int:
+    guild_id_str = str(guild_id)
+    return global_user_profile.get("bank_accounts", {}).get(guild_id_str, 0)
+
+def set_server_bank_balance(global_user_profile: dict, guild_id: int, new_balance: int):
+    guild_id_str = str(guild_id)
+    global_user_profile.setdefault("bank_accounts", {})[guild_id_str] = int(new_balance)
+    
 def get_or_create_guild_config(data: dict, guild_id: int) -> dict:
     guild_id_str = str(guild_id)
     if not isinstance(data.get("guild_configs"), dict): data["guild_configs"] = {}
@@ -171,18 +169,43 @@ def get_or_create_guild_config(data: dict, guild_id: int) -> dict:
             logger.debug(f"Đã cập nhật các key config còn thiếu cho guild {guild_id_str}.")
     return data["guild_configs"][guild_id_str]
 
+def get_or_create_global_shop_stock(data: dict) -> dict:
+    if not isinstance(data.get("global_shop_stock"), dict):
+        data["global_shop_stock"] = {}
+        logger.warning("'global_shop_stock' key không tồn tại hoặc không phải dict. Đã khởi tạo lại.")
+    return data["global_shop_stock"]
+
+def get_shop_item_details_from_stock(shop_stock: dict, item_id: str) -> Optional[dict]:
+    return shop_stock.get(item_id)
+
+def update_shop_item_stock(shop_stock: dict, item_id: str, quantity_change: int, item_master_list_entry: Optional[dict] = None):
+    if item_id not in shop_stock: 
+        if item_master_list_entry:
+            shop_stock[item_id] = {
+                "current_stock": 0, "max_stock": item_master_list_entry.get("max_stock_default", 10), 
+                "base_price": item_master_list_entry.get("price"),
+                "can_restock": item_master_list_entry.get("can_restock_default", True),
+                "last_restock_time": 0
+            }
+            logger.info(f"Vật phẩm '{item_id}' được thêm vào global_shop_stock lần đầu.")
+        else:
+            logger.error(f"Cố gắng cập nhật stock cho vật phẩm mới '{item_id}' mà không có thông tin từ master list.")
+            return False 
+    item_data = shop_stock[item_id]
+    item_data["current_stock"] = max(0, item_data["current_stock"] + quantity_change)
+    if quantity_change > 0 :
+        item_data["last_restock_time"] = datetime.now().timestamp()
+    return True
+
 def load_moderator_ids() -> list:
     path_to_file = config.MODERATORS_FILE 
-    logger.debug(f"Đang tải danh sách moderator từ: {path_to_file}")
     try:
         if not os.path.exists(path_to_file):
-            logger.warning(f"File moderator {path_to_file} không tồn tại. Tạo file mới với danh sách rỗng.")
             with open(path_to_file, 'w', encoding='utf-8') as f: json.dump({"moderator_ids": []}, f, indent=4)
             return []
         with open(path_to_file, 'r', encoding='utf-8') as f:
             content = f.read()
             if not content.strip():
-                logger.warning(f"File moderator {path_to_file} trống. Ghi lại cấu trúc mặc định.")
                 with open(path_to_file, 'w', encoding='utf-8') as wf: json.dump({"moderator_ids": []}, wf, indent=4)
                 return []
             data = json.loads(content)
@@ -190,26 +213,24 @@ def load_moderator_ids() -> list:
             for mod_id in ids:
                 try: valid_ids.append(int(mod_id))
                 except ValueError: logger.warning(f"ID moderator không hợp lệ trong file {path_to_file}: '{mod_id}'. Bỏ qua.")
-            logger.debug(f"Danh sách moderator đã tải thành công từ {path_to_file}. Số lượng hợp lệ: {len(valid_ids)}")
             return valid_ids
     except json.JSONDecodeError:
-        logger.error(f"LỖI JSONDecodeError: File {path_to_file} bị lỗi JSON. Trả về danh sách moderator rỗng.", exc_info=True)
+        logger.error(f"LỖI JSONDecodeError: File {path_to_file} bị lỗi JSON.", exc_info=True)
         try:
             with open(path_to_file, 'w', encoding='utf-8') as f: json.dump({"moderator_ids": []}, f, indent=4)
-        except Exception as e_write: logger.error(f"Không thể tạo lại file {path_to_file} sau lỗi JSONDecodeError: {e_write}", exc_info=True)
+        except Exception as e_write: logger.error(f"Không thể tạo lại file {path_to_file}: {e_write}", exc_info=True)
         return []
     except Exception as e:
-        logger.error(f"Lỗi không xác định khi tải moderator_ids từ {path_to_file}: {e}", exc_info=True)
+        logger.error(f"Lỗi không xác định khi tải moderator_ids: {e}", exc_info=True)
         return []
 
 def save_moderator_ids(ids: list) -> bool:
     path_to_file = config.MODERATORS_FILE 
-    logger.debug(f"Đang lưu danh sách moderator vào: {path_to_file}. Dữ liệu: {ids}")
     try:
         cleaned_ids = list(set(int(mod_id) for mod_id in ids if str(mod_id).strip().isdigit()))
         with open(path_to_file, 'w', encoding='utf-8') as f:
             json.dump({"moderator_ids": cleaned_ids}, f, indent=4)
-        logger.info(f"Danh sách moderator đã được lưu thành công vào {path_to_file}. Số lượng: {len(cleaned_ids)}")
+        logger.info(f"Danh sách moderator đã được lưu vào {path_to_file}.")
         return True
     except Exception as e:
         logger.error(f"Lỗi khi lưu moderator_ids vào {path_to_file}: {e}", exc_info=True)
@@ -217,20 +238,18 @@ def save_moderator_ids(ids: list) -> bool:
 
 def add_moderator_id(user_id: int) -> bool:
     try: mod_id_to_add = int(user_id)
-    except ValueError: logger.error(f"Lỗi: User ID '{user_id}' cung cấp cho add_moderator_id không phải là số."); return False
+    except ValueError: logger.error(f"Lỗi: User ID '{user_id}' không phải là số."); return False
     current_ids = load_moderator_ids()
     if mod_id_to_add not in current_ids:
-        logger.info(f"Thêm moderator ID: {mod_id_to_add} vào danh sách.")
         current_ids.append(mod_id_to_add)
         return save_moderator_ids(current_ids)
-    else: logger.info(f"User ID {mod_id_to_add} đã có trong danh sách moderator. Không thêm."); return True 
+    else: return True 
 
 def remove_moderator_id(user_id: int) -> bool:
     try: mod_id_to_remove = int(user_id)
-    except ValueError: logger.error(f"Lỗi: User ID '{user_id}' cung cấp cho remove_moderator_id không phải là số."); return False
+    except ValueError: logger.error(f"Lỗi: User ID '{user_id}' không phải là số."); return False
     current_ids = load_moderator_ids()
     if mod_id_to_remove in current_ids:
-        logger.info(f"Xóa moderator ID: {mod_id_to_remove} khỏi danh sách.")
         current_ids.remove(mod_id_to_remove)
         return save_moderator_ids(current_ids)
-    else: logger.warning(f"User ID {mod_id_to_remove} không tìm thấy trong danh sách moderator để xóa."); return False
+    else: logger.warning(f"User ID {mod_id_to_remove} không tìm thấy để xóa."); return False
