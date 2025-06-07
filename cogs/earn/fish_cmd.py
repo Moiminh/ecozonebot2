@@ -1,3 +1,4 @@
+# bot/cogs/earn/fish_cmd.py
 import nextcord
 from nextcord.ext import commands
 import random
@@ -71,5 +72,5 @@ class FishCommandCog(commands.Cog, name="Fish Command"):
         
         await try_send(ctx, content=message_to_send)
 
-**def setup(bot: commands.Bot):**
-    **bot.add_cog(FishCommandCog(bot))**
+def setup(bot: commands.Bot):
+    bot.add_cog(FishCommandCog(bot))
