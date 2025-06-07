@@ -12,20 +12,21 @@ from core.database import (
     get_or_create_user_local_data
 )
 from core.utils import try_send
-from core.config import DAILY_COOLDOWN # Lấy cooldown từ file config
+from core.config import DAILY_COOLDOWN
+# Import hàm xử lý level up
+from core.leveling import check_and_process_levelup
 from core.icons import ICON_LOADING, ICON_GIFT, ICON_MONEY_BAG, ICON_ERROR, ICON_TIEN_SACH
 
-# Lấy logger cho module này
 logger = logging.getLogger(__name__)
 
 class DailyCommandCog(commands.Cog, name="Daily Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("DailyCommandCog (v2) initialized.")
+        logger.info("DailyCommandCog (v2) - with Leveling - initialized.")
 
     @commands.command(name='daily', aliases=['d'])
     async def daily(self, ctx: commands.Context):
-        """Nhận phần thưởng hàng ngày của bạn."""
+        # ... (phần code kiểm tra guild và lấy dữ liệu giữ nguyên) ...
         if not ctx.guild:
             await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
             return
@@ -34,7 +35,6 @@ class DailyCommandCog(commands.Cog, name="Daily Command"):
         guild_id = ctx.guild.id
         
         try:
-            # Tải dữ liệu
             economy_data = load_economy_data()
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
             local_data = get_or_create_user_local_data(global_profile, guild_id)
@@ -59,14 +59,7 @@ class DailyCommandCog(commands.Cog, name="Daily Command"):
             global_profile["xp_global"] += xp_earned_global
             global_profile["cooldowns"]["daily"] = now
             
-            # Lưu lại toàn bộ dữ liệu
-            save_economy_data(economy_data)
-
-            # Gửi thông báo cho người dùng
             total_local_balance = local_data["local_balance"]["earned"] + local_data["local_balance"]["adadd"]
-            
-            logger.info(f"User {author_id} tại guild {guild_id} đã nhận 'daily', nhận {bonus} earned và {xp_earned_local} xp_local.")
-
             await try_send(
                 ctx, 
                 content=(
@@ -77,10 +70,15 @@ class DailyCommandCog(commands.Cog, name="Daily Command"):
                 )
             )
 
+            # --- KIỂM TRA LEVEL UP ---
+            await check_and_process_levelup(ctx, local_data, 'local')
+            await check_and_process_levelup(ctx, global_profile, 'global')
+            
+            save_economy_data(economy_data)
+
         except Exception as e:
             logger.error(f"Lỗi trong lệnh 'daily' (v2) cho user {author_id}: {e}", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi bạn nhận thưởng hàng ngày.")
-
 
 def setup(bot: commands.Bot):
     bot.add_cog(DailyCommandCog(bot))
