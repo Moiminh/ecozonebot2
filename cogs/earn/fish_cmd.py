@@ -70,3 +70,6 @@ class FishCommandCog(commands.Cog, name="Fish Command"):
             message_to_send = f"{ICON_FISH} Ôi không! Bạn câu được rác {catch_emoji}... nhưng may là vẫn bán được **{price:,}** {CURRENCY_SYMBOL} vào Ví Local."
         
         await try_send(ctx, content=message_to_send)
+
+**def setup(bot: commands.Bot):**
+    **bot.add_cog(FishCommandCog(bot))**
