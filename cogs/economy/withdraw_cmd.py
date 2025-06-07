@@ -5,7 +5,8 @@ import logging
 from core.database import (
     load_economy_data,
     get_or_create_global_user_profile,
-    get_or_create_user_server_data,
+    get_server_bank_balance,
+    set_server_bank_balance,
     save_economy_data
 )
 from core.utils import try_send
@@ -32,18 +33,15 @@ class WithdrawCommandCog(commands.Cog, name="Withdraw Command"):
         
         economy_data = load_economy_data()
         global_profile = get_or_create_global_user_profile(economy_data, author_id)
-        server_data = get_or_create_user_server_data(global_profile, guild_id)
-
-        local_balance_dict = server_data.get("local_balance", {"earned": 0, "admin_added": 0})
-        total_local_balance = local_balance_dict.get("earned", 0) + local_balance_dict.get("admin_added", 0)
-
+        
         original_global_balance = global_profile.get("global_balance", 0)
+        original_server_bank_balance = get_server_bank_balance(global_profile, guild_id)
         
         amount_to_withdraw = 0
 
         try:
             if amount_str.lower() == 'all':
-                amount_to_withdraw = total_local_balance
+                amount_to_withdraw = original_server_bank_balance
             else:
                 amount_to_withdraw = int(amount_str)
         except ValueError:
@@ -55,26 +53,28 @@ class WithdrawCommandCog(commands.Cog, name="Withdraw Command"):
                 await try_send(ctx, content=f"{ICON_ERROR} Số tiền rút phải lớn hơn 0.")
                 return
             else:
-                await try_send(ctx, content=f"{ICON_INFO} Ví Local của bạn tại server này đang rỗng, không có gì để rút.")
+                await try_send(ctx, content=f"{ICON_INFO} Ngân hàng của bạn tại server này đang rỗng, không có gì để rút.")
                 return
             
-        if total_local_balance < amount_to_withdraw:
-            await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền trong Ví Local tại server này. {ICON_MONEY_BAG} Ví Local của bạn: {total_local_balance:,} {CURRENCY_SYMBOL}")
+        if original_server_bank_balance < amount_to_withdraw:
+            await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền trong Ngân Hàng tại server này. {ICON_BANK} Ngân hàng của bạn: {original_server_bank_balance:,} {CURRENCY_SYMBOL}")
             return
         
-        admin_money_to_withdraw = min(local_balance_dict.get("admin_added", 0), amount_to_withdraw)
-        earned_money_to_withdraw = amount_to_withdraw - admin_money_to_withdraw
-
-        local_balance_dict["admin_added"] -= admin_money_to_withdraw
-        local_balance_dict["earned"] -= earned_money_to_withdraw
+        # This part of logic needs to be revisited based on the "Ecoworld Economic Rule Set"
+        # For now, let's assume withdrawing from the per-server bank adds to the LOCAL EARNED balance, not global.
+        # This makes more sense as it keeps server-generated money (from !addmoney) from becoming global easily.
         
-        global_profile["global_balance"] = original_global_balance + earned_money_to_withdraw
+        server_data = get_or_create_user_server_data(global_profile, guild_id)
+        
+        # Withdraw logic: from per-server bank to local earned wallet.
+        set_server_bank_balance(global_profile, guild_id, original_server_bank_balance - amount_to_withdraw)
+        server_data["local_balance"]["earned"] += amount_to_withdraw
         
         save_economy_data(economy_data) 
 
-        logger.info(f"Guild: {ctx.guild.name} ({guild_id}) - User: {ctx.author.display_name} ({author_id}) đã rút {amount_to_withdraw:,} {CURRENCY_SYMBOL} từ Ví Local. "
-                    f"Trong đó, {earned_money_to_withdraw:,} được chuyển thành GOL. {admin_money_to_withdraw:,} tiền admin-added bị 'đốt cháy'. "
-                    f"Ví Global: {original_global_balance:,} -> {global_profile['global_balance']:,}.")
+        logger.info(f"Guild: {ctx.guild.name} ({guild_id}) - User: {ctx.author.display_name} ({author_id}) đã withdraw {amount_to_withdraw:,} {CURRENCY_SYMBOL} từ ngân hàng server vào Ví Local (Earned).")
         
-        await try_send(ctx, content=f"{ICON_SUCCESS} Bạn đã rút **{amount_to_withdraw:,}** {CURRENCY_SYMBOL} từ Ví Local tại server này.\n"
-                                    f"Trong đó, **{earned_money_to_withdraw:,}** {CURRENCY_SYMBOL} đã được chuyển đổi và cộng vào Ví Global (GOL) của bạn!")
+        await try_send(ctx, content=f"{ICON_SUCCESS} Bạn đã rút **{amount_to_withdraw:,}** {CURRENCY_SYMBOL} từ Ngân Hàng tại server này về Ví Local của bạn.")
+
+def setup(bot: commands.Bot):
+    bot.add_cog(WithdrawCommandCog(bot))
