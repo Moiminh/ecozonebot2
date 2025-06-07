@@ -185,7 +185,90 @@ class ModToolsSlashCog(commands.Cog, name="Moderator Slash Tools"):
         except Exception as e:
             logger.error(f"Lỗi trong lệnh /mod set balance: {e}", exc_info=True)
             await interaction.followup.send(f"{ICON_ERROR} Đã xảy ra lỗi khi cập nhật dữ liệu.", ephemeral=True)
+# --- LỆNH CON MỚI: /mod set xp ---
+    @set_group.subcommand(name="xp", description="Thiết lập điểm kinh nghiệm cho một người dùng.")
+    @application_checks.check(check_is_bot_moderator_interaction)
+    async def set_xp(
+        self,
+        interaction: nextcord.Interaction,
+        user: nextcord.User = nextcord.SlashOption(name="user", description="Người dùng cần chỉnh sửa.", required=True),
+        xp_type: str = nextcord.SlashOption(
+            name="type",
+            description="Loại XP muốn thay đổi.",
+            required=True,
+            choices={"XP Local": "local", "XP Global": "global"}
+        ),
+        amount: int = nextcord.SlashOption(name="amount", description="Số XP muốn thiết lập.", required=True)
+    ):
+        """Thiết lập XP cho một người dùng."""
+        await interaction.response.defer(ephemeral=True)
+        final_amount = max(0, amount)
 
+        try:
+            economy_data = load_economy_data()
+            global_profile = get_or_create_global_user_profile(economy_data, user.id)
+            
+            xp_key = f"xp_{xp_type}"
+            original_value = 0
+
+            if xp_type == "global":
+                original_value = global_profile.get(xp_key, 0)
+                global_profile[xp_key] = final_amount
+            else: # local
+                if not interaction.guild:
+                    await interaction.followup.send(f"{ICON_ERROR} Cần dùng lệnh trong server để set XP Local.", ephemeral=True)
+                    return
+                local_data = get_or_create_user_local_data(global_profile, interaction.guild.id)
+                original_value = local_data.get(xp_key, 0)
+                local_data[xp_key] = final_amount
+
+            save_economy_data(economy_data)
+            logger.info(f"MODERATOR ACTION: {interaction.user.id} đã set {xp_key} của {user.id} thành {final_amount}.")
+            await interaction.followup.send(
+                f"{ICON_SUCCESS} Đã cập nhật thành công!\n"
+                f"  - **Người dùng:** {user.mention}\n"
+                f"  - **Loại XP:** `{xp_type.capitalize()}`\n"
+                f"  - **Giá trị cũ:** `{format_large_number(original_value)}`\n"
+                f"  - **Giá trị mới:** `{format_large_number(final_amount)}`",
+                ephemeral=True
+            )
+        except Exception as e:
+            logger.error(f"Lỗi trong lệnh /mod set xp: {e}", exc_info=True)
+            await interaction.followup.send(f"{ICON_ERROR} Đã xảy ra lỗi khi cập nhật dữ liệu.", ephemeral=True)
+
+    # --- LỆNH CON MỚI: /mod set wanted_level ---
+    @set_group.subcommand(name="wanted_level", description="Thiết lập Điểm Nghi ngờ (truy nã) cho người dùng.")
+    @application_checks.check(check_is_bot_moderator_interaction)
+    async def set_wanted_level(
+        self,
+        interaction: nextcord.Interaction,
+        user: nextcord.User = nextcord.SlashOption(name="user", description="Người dùng cần chỉnh sửa.", required=True),
+        level: float = nextcord.SlashOption(name="level", description="Mức độ truy nã muốn thiết lập.", required=True)
+    ):
+        """Thiết lập wanted_level cho một người dùng."""
+        await interaction.response.defer(ephemeral=True)
+        final_level = max(0.0, level)
+
+        try:
+            economy_data = load_economy_data()
+            global_profile = get_or_create_global_user_profile(economy_data, user.id)
+            
+            original_value = global_profile.get("wanted_level", 0.0)
+            global_profile["wanted_level"] = final_level
+            
+            save_economy_data(economy_data)
+            logger.info(f"MODERATOR ACTION: {interaction.user.id} đã set wanted_level của {user.id} thành {final_level}.")
+            await interaction.followup.send(
+                f"{ICON_SUCCESS} Đã cập nhật thành công!\n"
+                f"  - **Người dùng:** {user.mention}\n"
+                f"  - **Chỉ số:** `Wanted Level` 🕵️\n"
+                f"  - **Giá trị cũ:** `{original_value:.2f}`\n"
+                f"  - **Giá trị mới:** `{final_level:.2f}`",
+                ephemeral=True
+            )
+        except Exception as e:
+            logger.error(f"Lỗi trong lệnh /mod set wanted_level: {e}", exc_info=True)
+            await interaction.followup.send(f"{ICON_ERROR} Đã xảy ra lỗi khi cập nhật dữ liệu.", ephemeral=True)
 
 
 def setup(bot: commands.Bot):
