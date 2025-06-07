@@ -1,3 +1,4 @@
+# bot/cogs/earn/crime_cmd.py
 import nextcord
 from nextcord.ext import commands
 import random
@@ -6,23 +7,28 @@ import logging
 
 from core.database import (
     load_economy_data,
+    save_economy_data,
     get_or_create_global_user_profile,
-    get_or_create_user_server_data,
-    save_economy_data
+    get_or_create_user_local_data
 )
-from core.utils import try_send, get_time_left_str
-from core.config import CURRENCY_SYMBOL, CRIME_COOLDOWN, CRIME_SUCCESS_RATE
-from core.icons import ICON_LOADING, ICON_CRIME, ICON_ERROR, ICON_MONEY_BAG, ICON_INFO
+from core.utils import try_send
+from core.config import CRIME_COOLDOWN, CRIME_SUCCESS_RATE
+from core.icons import (
+    ICON_LOADING, ICON_CRIME, ICON_ERROR, ICON_MONEY_BAG,
+    ICON_TIEN_SACH, ICON_TIEN_LAU
+)
 
+# Lấy logger cho module này
 logger = logging.getLogger(__name__)
 
 class CrimeCommandCog(commands.Cog, name="Crime Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.debug(f"CrimeCommandCog initialized for Ecoworld Economy.")
+        logger.info("CrimeCommandCog (v2) initialized.")
 
     @commands.command(name='crime')
     async def crime(self, ctx: commands.Context):
+        """Thực hiện một phi vụ phạm pháp để có cơ hội kiếm được nhiều tiền."""
         if not ctx.guild:
             await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
             return
@@ -30,60 +36,82 @@ class CrimeCommandCog(commands.Cog, name="Crime Command"):
         author_id = ctx.author.id
         guild_id = ctx.guild.id
         
-        logger.debug(f"Lệnh 'crime' được gọi bởi {ctx.author.name} ({author_id}) tại guild '{ctx.guild.name}' ({guild_id}).")
-        
-        economy_data = load_economy_data()
-        user_profile = get_or_create_global_user_profile(economy_data, author_id)
-        
-        time_left = get_time_left_str(user_profile.get("last_crime_global"), CRIME_COOLDOWN)
-        if time_left:
-            await try_send(ctx, content=f"{ICON_LOADING} Cảnh sát đang theo dõi! Lệnh `crime` (toàn cục) chờ: **{time_left}**.")
-            return
-            
-        user_profile["last_crime_global"] = datetime.now().timestamp()
-        
-        user_server_data = get_or_create_user_server_data(user_profile, guild_id)
-        local_balance = user_server_data.get("local_balance", {})
-        original_earned_amount = local_balance.get("earned", 0)
-        original_admin_added_amount = local_balance.get("admin_added", 0)
-        original_total_local_balance = original_earned_amount + original_admin_added_amount
+        try:
+            economy_data = load_economy_data()
+            global_profile = get_or_create_global_user_profile(economy_data, author_id)
+            local_data = get_or_create_user_local_data(global_profile, guild_id)
 
-        crimes_list = ["trộm vặt", "buôn lậu", "hack tài khoản", "tổ chức đua xe đường phố", "giả danh quan chức", "lừa đảo qua mạng", "in tiền giả"]
-        chosen_crime = random.choice(crimes_list)
-        logger.debug(f"User {author_id} tại guild {guild_id} thực hiện tội '{chosen_crime}'.")
-
-        if random.random() < CRIME_SUCCESS_RATE:
-            earnings = random.randint(300, 1000)
-            user_server_data["local_balance"]["earned"] = original_earned_amount + earnings
+            # --- Kiểm tra Cooldown ---
+            now = datetime.now().timestamp()
+            last_crime = global_profile.get("cooldowns", {}).get("crime", 0)
             
-            logger.info(f"CRIME SUCCESS: Guild: {ctx.guild.name} ({guild_id}) - User: {ctx.author.display_name} ({author_id}) thực hiện '{chosen_crime}' thành công, +{earnings:,} {CURRENCY_SYMBOL} vào Ví Local (Earned). "
-                        f"Earned Balance: {original_earned_amount:,} -> {user_server_data['local_balance']['earned']:,}.")
-            
-            await try_send(ctx, content=f"{ICON_CRIME} Bạn đã thực hiện thành công phi vụ **'{chosen_crime}'** và kiếm được **{earnings:,}** {CURRENCY_SYMBOL} vào Ví Local!")
-        else:
-            fine_percentage = random.uniform(0.05, 0.20)
-            potential_fine_from_percentage = int(original_total_local_balance * fine_percentage)
-            min_random_fine = random.randint(100, 500)
-            
-            fine = max(potential_fine_from_percentage, min_random_fine)
-            fine = min(fine, original_total_local_balance)
-            
-            admin_money_deducted = min(original_admin_added_amount, fine)
-            earned_money_deducted = fine - admin_money_deducted
+            if now - last_crime < CRIME_COOLDOWN:
+                time_left = str(datetime.fromtimestamp(last_crime + CRIME_COOLDOWN) - datetime.now()).split('.')[0]
+                await try_send(ctx, content=f"{ICON_LOADING} Cảnh sát đang theo dõi! Lệnh `crime` còn chờ: **{time_left}**.")
+                return
 
-            user_server_data["local_balance"]["admin_added"] -= admin_money_deducted
-            user_server_data["local_balance"]["earned"] -= earned_money_deducted
+            # Đặt cooldown ngay lập tức để tránh spam
+            global_profile["cooldowns"]["crime"] = now
+            
+            crimes_list = ["trộm vặt", "buôn lậu", "hack tài khoản", "tổ chức đua xe", "lừa đảo qua mạng"]
+            chosen_crime = random.choice(crimes_list)
 
-            logger.info(f"CRIME FAILED: Guild: {ctx.guild.name} ({guild_id}) - User: {ctx.author.display_name} ({author_id}) thực hiện '{chosen_crime}' thất bại, bị phạt {fine:,} {CURRENCY_SYMBOL} từ Ví Local. "
-                        f"Số dư local cũ: {original_total_local_balance:,} -> mới: {user_server_data['local_balance']['earned'] + user_server_data['local_balance']['admin_added']:,}.")
+            # --- Logic thành công/thất bại ---
+            if random.random() < CRIME_SUCCESS_RATE:
+                # THÀNH CÔNG
+                earnings = random.randint(400, 1200)
+                xp_earned_local = random.randint(10, 30)
+                xp_earned_global = random.randint(20, 50)
 
-            await try_send(ctx, content=f"{ICON_ERROR} Bạn đã thất bại thảm hại khi thực hiện **'{chosen_crime}'** và bị phạt **{fine:,}** {CURRENCY_SYMBOL} từ Ví Local!")
-        
-        save_economy_data(economy_data)
-        
-        new_total_local_balance = user_server_data['local_balance']['earned'] + user_server_data['local_balance']['admin_added']
-        await try_send(ctx, content=f"{ICON_MONEY_BAG} Ví Local của bạn giờ là: **{new_total_local_balance:,}** {CURRENCY_SYMBOL}")
-        logger.debug(f"Lệnh 'crime' cho {ctx.author.name} tại guild '{ctx.guild.name}' ({guild_id}) đã xử lý xong.")
+                local_data["local_balance"]["earned"] += earnings
+                local_data["xp_local"] += xp_earned_local
+                global_profile["xp_global"] += xp_earned_global
+
+                logger.info(f"User {author_id} tại guild {guild_id} đã 'crime' thành công, nhận {earnings} earned.")
+                await try_send(
+                    ctx,
+                    content=(
+                        f"{ICON_CRIME} Bạn đã thực hiện thành công phi vụ **'{chosen_crime}'** và nhận được:\n"
+                        f"  {ICON_TIEN_SACH} **{earnings:,}** Tiền Sạch\n"
+                        f"  ✨ **{xp_earned_local}** XP (Server) & **{xp_earned_global}** XP (Global)"
+                    )
+                )
+            else:
+                # THẤT BẠI
+                fine = random.randint(200, 800)
+                
+                # Ưu tiên trừ tiền lậu trước
+                adadd_balance = local_data["local_balance"]["adadd"]
+                earned_balance = local_data["local_balance"]["earned"]
+                total_local_balance = adadd_balance + earned_balance
+
+                actual_fine = min(fine, total_local_balance) # Không thể phạt nhiều hơn số tiền đang có
+
+                adadd_deducted = min(adadd_balance, actual_fine)
+                earned_deducted = actual_fine - adadd_deducted
+
+                local_data["local_balance"]["adadd"] -= adadd_deducted
+                local_data["local_balance"]["earned"] -= earned_deducted
+
+                logger.info(f"User {author_id} tại guild {guild_id} đã 'crime' thất bại, bị phạt {actual_fine}.")
+                await try_send(
+                    ctx,
+                    content=(
+                        f"{ICON_ERROR} Bạn đã thất bại thảm hại khi **'{chosen_crime}'** và bị phạt **{actual_fine:,}** {ICON_MONEY_BAG}.\n"
+                        f"  (Trừ từ Tiền Lậu: {adadd_deducted:,} {ICON_TIEN_LAU} | Trừ từ Tiền Sạch: {earned_deducted:,} {ICON_TIEN_SACH})"
+                    )
+                )
+
+            # Lưu dữ liệu sau khi đã xử lý
+            save_economy_data(economy_data)
+
+            # Gửi thông báo số dư cuối cùng
+            final_total_balance = local_data["local_balance"]["earned"] + local_data["local_balance"]["adadd"]
+            await ctx.send(f"Tổng Ví Local của bạn hiện tại: **{final_total_balance:,}** {ICON_MONEY_BAG}")
+
+        except Exception as e:
+            logger.error(f"Lỗi trong lệnh 'crime' (v2) cho user {author_id}: {e}", exc_info=True)
+            await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi bạn đang thực hiện phi vụ.")
 
 def setup(bot: commands.Bot):
     bot.add_cog(CrimeCommandCog(bot))
