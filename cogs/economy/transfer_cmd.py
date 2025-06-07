@@ -1,29 +1,29 @@
+# bot/cogs/economy/transfer_cmd.py
 import nextcord
 from nextcord.ext import commands
 import logging
 
 from core.database import (
     load_economy_data,
-    get_or_create_global_user_profile,
-    save_economy_data
+    save_economy_data,
+    get_or_create_global_user_profile
 )
 from core.utils import try_send
-from core.config import CURRENCY_SYMBOL
-from core.icons import ICON_GIFT, ICON_ERROR, ICON_MONEY_BAG, ICON_INFO
+from core.icons import ICON_GIFT, ICON_ERROR, ICON_BANK, ICON_INFO
 
 logger = logging.getLogger(__name__)
 
 class TransferCommandCog(commands.Cog, name="Transfer Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.debug(f"TransferCommandCog initialized for Ecoworld Economy.")
+        logger.info("TransferCommandCog (v2) initialized.")
 
     @commands.command(name='transfer', aliases=['give', 'pay', 'tf'])
     async def transfer(self, ctx: commands.Context, recipient: nextcord.User, amount: int):
+        """Chuyển tiền từ Bank của bạn cho người chơi khác (miễn phí)."""
         sender = ctx.author
         
-        logger.debug(f"Lệnh 'transfer' được gọi bởi {sender.name} ({sender.id}) đến {recipient.name} ({recipient.id}) với số tiền {amount}.")
-
+        # --- Kiểm tra các điều kiện cơ bản ---
         if amount <= 0:
             await try_send(ctx, content=f"{ICON_ERROR} Số tiền chuyển phải lớn hơn 0!")
             return
@@ -34,29 +34,40 @@ class TransferCommandCog(commands.Cog, name="Transfer Command"):
             await try_send(ctx, content=f"{ICON_ERROR} Không thể chuyển tiền cho bot!")
             return
 
-        economy_data = load_economy_data()
-        
-        sender_profile = get_or_create_global_user_profile(economy_data, sender.id)
-        original_sender_global_balance = sender_profile.get("global_balance", 0)
+        try:
+            economy_data = load_economy_data()
+            
+            # Lấy profile của người gửi và người nhận
+            sender_profile = get_or_create_global_user_profile(economy_data, sender.id)
+            recipient_profile = get_or_create_global_user_profile(economy_data, recipient.id)
+            
+            sender_bank_balance = sender_profile.get("bank_balance", 0)
 
-        if original_sender_global_balance < amount:
-            await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền trong Ví Global (GOL)! {ICON_MONEY_BAG} Ví GOL của bạn: **{original_sender_global_balance:,}** {CURRENCY_SYMBOL}.")
-            return
-        
-        recipient_profile = get_or_create_global_user_profile(economy_data, recipient.id)
-        original_recipient_global_balance = recipient_profile.get("global_balance", 0)
-        
-        sender_profile["global_balance"] = original_sender_global_balance - amount
-        recipient_profile["global_balance"] = original_recipient_global_balance + amount
-        
-        save_economy_data(economy_data)
+            # Kiểm tra số dư của người gửi
+            if sender_bank_balance < amount:
+                await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền trong Bank! {ICON_BANK} Bank của bạn có: **{sender_bank_balance:,}**")
+                return
+            
+            # --- Thực hiện giao dịch ---
+            sender_profile["bank_balance"] -= amount
+            recipient_profile["bank_balance"] += amount
+            
+            save_economy_data(economy_data)
 
-        logger.info(f"GLOBAL TRANSFER: User {sender.display_name} ({sender.id}) đã transfer {amount:,} {CURRENCY_SYMBOL} GOL "
-                    f"cho {recipient.display_name} ({recipient.id}). "
-                    f"Sender global_balance: {original_sender_global_balance:,} -> {sender_profile['global_balance']:,}. "
-                    f"Recipient global_balance: {original_recipient_global_balance:,} -> {recipient_profile['global_balance']:,}.")
-        
-        await try_send(ctx, content=f"{ICON_GIFT} {sender.mention} đã chuyển thành công **{amount:,}** {CURRENCY_SYMBOL} từ Ví Global của bạn sang Ví Global của {recipient.mention}!")
-        
+            logger.info(f"GLOBAL TRANSFER: User {sender.id} đã chuyển {amount} từ Bank cho User {recipient.id}.")
+
+            # Gửi thông báo thành công
+            await try_send(
+                ctx,
+                content=(
+                    f"{ICON_GIFT} {sender.mention} đã chuyển thành công **{amount:,}** từ Bank của bạn cho {recipient.mention}!\n"
+                    f"Số dư Bank mới của bạn: **{sender_profile['bank_balance']:,}** {ICON_BANK}"
+                )
+            )
+
+        except Exception as e:
+            logger.error(f"Lỗi trong lệnh 'transfer' (v2) từ {sender.id} đến {recipient.id}: {e}", exc_info=True)
+            await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi bạn chuyển tiền.")
+
 def setup(bot: commands.Bot):
     bot.add_cog(TransferCommandCog(bot))
