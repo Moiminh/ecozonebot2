@@ -11,60 +11,12 @@ from core.database import (
     get_or_create_user_local_data
 )
 from core.utils import try_send
-from core.config import CF_COOLDOWN, BASE_CATCH_CHANCE, WANTED_LEVEL_CATCH_MULTIPLIER
-from core.icons import ICON_LOADING, ICON_ERROR, ICON_WARNING, ICON_MONEY_BAG, ICON_COINFLIP_HEADS, ICON_COINFLIP_TAILS, ICON_ECOIN, ICON_ECOBIT
-
-logger = logging.getLogger(__name__)
-
-class CoinflipBetView(nextcord.ui.View):
-    def __init__(self, ctx, game_cog_instance, bet_amount, choice):
-        super().__init__(timeout=120)
-        self.ctx = ctx
-        self.game_cog = game_cog_instance
-        self.bet = bet_amount
-        self.choice = choice
-        self.interaction_user = ctx.author
-        self.message = None
-
-    async def interaction_check(self, interaction: nextcord.Interaction) -> bool:
-        if interaction.user.id != self.interaction_user.id:
-            await interaction.response.send_message("Đây không phải là ván cược của bạn!", ephemeral=True)
-            return False
-        return True
-
-    async def on_timeout(self):
-        if self.message:
-            for item in self.children:
-                item.disabled = True
-            await self.message.edit(content="⏳ Ván cược đã hết hạn.", view=self)
-
-    @nextcord.ui.button(label="Cược bằng 🪙Ecoin (An toàn)", style=nextcord.ButtonStyle.green, custom_id="bet_ecoin")
-    async def bet_with_ecoin(self, button: nextcord.ui.Button, interaction: nextcord.Interaction):
-        await interaction.response.defer()
-        await self.game_cog.play_coinflip_game(self, interaction, "earned")
-
-    @nextcord.ui.button(label="Cược bằng 🧪Ecobit (Rủi ro)", style=nextcord.ButtonStyle.red, custom_id="bet_ecobit")
-    async def bet_with_ecobit(self, button: nextcord.ui.Button, interaction: nextcord.Interaction):
-        await interaction.response.defer()
-# bot/cogs/games/coinflip_cmd.py
-import nextcord
-from nextcord.ext import commands
-import random
-import logging
-from datetime import datetime
-
-from core.database import (
-    load_economy_data,
-    save_economy_data,
-    get_or_create_global_user_profile,
-    get_or_create_user_local_data
-)
-from core.utils import try_send
 from core.config import DICE_COOLDOWN, BASE_CATCH_CHANCE, WANTED_LEVEL_CATCH_MULTIPLIER
 from core.icons import (
     ICON_LOADING, ICON_ERROR, ICON_MONEY_BAG, ICON_ECOIN, ICON_ECOBIT,
     ICON_WARNING, ICON_COINFLIP_HEADS, ICON_COINFLIP_TAILS
 )
+from core.travel_manager import handle_travel_event
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +56,7 @@ class CoinflipBetView(nextcord.ui.View):
 class CoinflipCommandCog(commands.Cog, name="Coinflip Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("CoinflipCommandCog (v3 - Interactive) initialized.")
+        logger.info("CoinflipCommandCog (v4 - with Travel) initialized.")
 
     @commands.command(name='coinflip', aliases=['cf'])
     async def coinflip(self, ctx: commands.Context, bet: int, choice: str):
@@ -124,7 +76,15 @@ class CoinflipCommandCog(commands.Cog, name="Coinflip Command"):
 
         economy_data = load_economy_data()
         global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
-        local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
+
+        # --- Kiểm tra Last Active Guild ---
+        guild_id = ctx.guild.id
+        if global_profile.get("last_active_guild_id") != guild_id:
+            await handle_travel_event(ctx, self.bot)
+            logger.info(f"User {ctx.author.id} has 'traveled' to guild {guild_id}.")
+        global_profile["last_active_guild_id"] = guild_id
+
+        local_data = get_or_create_user_local_data(global_profile, guild_id)
 
         now = datetime.now().timestamp()
         last_cf = global_profile.get("cooldowns", {}).get("coinflip", 0)
@@ -157,7 +117,15 @@ class CoinflipCommandCog(commands.Cog, name="Coinflip Command"):
 
         economy_data = load_economy_data()
         global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
-        local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
+
+        # --- Kiểm tra Last Active Guild ---
+        guild_id = ctx.guild.id
+        if global_profile.get("last_active_guild_id") != guild_id:
+            await handle_travel_event(ctx, self.bot)
+            logger.info(f"User {ctx.author.id} has 'traveled' to guild {guild_id}.")
+        global_profile["last_active_guild_id"] = guild_id
+
+        local_data = get_or_create_user_local_data(global_profile, guild_id)
 
         local_data["local_balance"][payment_type] -= bet
 
@@ -172,7 +140,7 @@ class CoinflipCommandCog(commands.Cog, name="Coinflip Command"):
                 await view.message.edit(content=f"🚨 **BỊ BẮT!** Bạn bị phạt **{fine_amount:,}** vì dùng `Ecobit` để cá cược!", view=None)
                 return
 
-        global_profile["cooldowns"]["coinflip"] = datetime.now().timestamp()
+        global_profile.setdefault("cooldowns", {})["coinflip"] = datetime.now().timestamp()
         player_choice = "heads" if choice_input.lower() in ['heads', 'ngửa', 'h', 'n'] else "tails"
         result = random.choice(['heads', 'tails'])
 
@@ -191,11 +159,6 @@ class CoinflipCommandCog(commands.Cog, name="Coinflip Command"):
         new_total = local_data["local_balance"]["earned"] + local_data["local_balance"]["adadd"]
 
         await view.message.edit(content=f"{header_msg}{result_msg}\nVí Local hiện tại: **{new_total:,}** {ICON_MONEY_BAG}", view=None)
-
-def setup(bot: commands.Bot):
-    bot.add_cog(CoinflipCommandCog(bot))
-     new_total_balance = local_data["local_balance"]["earned"] + local_data["local_balance"]["adadd"]
-        await view.message.edit(content=f"{header_msg}{final_msg}\nVí Local của bạn giờ là: **{new_total_balance:,}** {ICON_MONEY_BAG}", view=None)
 
 def setup(bot: commands.Bot):
     bot.add_cog(CoinflipCommandCog(bot))
