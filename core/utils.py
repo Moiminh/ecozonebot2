@@ -71,93 +71,95 @@ def get_player_title(level: int, wanted_level: float) -> str:
             break
             
     return f"{current_title} (Level {level})"
+# bot/cogs/actions/use_cmd.py
+import nextcord
+from nextcord.ext import commands
+import logging
 
+from core.database import get_or_create_global_user_profile, get_or_create_user_local_data
+from core.utils import try_send
+from core.icons import ICON_SUCCESS, ICON_ERROR, ICON_INFO, ICON_SURVIVAL
 
-def is_guild_owner_check(interaction_or_ctx):
-    user = interaction_or_ctx.user if isinstance(interaction_or_ctx, nextcord.Interaction) else interaction_or_ctx.author
-    guild = interaction_or_ctx.guild
-    if guild is None: return False
-    return user.id == guild.owner_id
+logger = logging.getLogger(__name__)
 
-def get_time_left_str(last_timestamp, cooldown_seconds):
-    if not last_timestamp: return None
-    now = datetime.now().timestamp()
-    time_passed = now - last_timestamp
-    if time_passed >= cooldown_seconds: return None
-    time_left_seconds = cooldown_seconds - time_passed
-    return str(timedelta(seconds=int(time_left_seconds))).split('.')[0]
+class UseCommandCog(commands.Cog, name="Use Command"):
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+        logger.info("UseCommandCog (v2 - Refactored) initialized.")
 
-async def try_send(target, content=None, embed=None, ephemeral=False):
-    utils_logger.debug(f"TRY_SEND_DEBUG: Called for target type {type(target)}, ephemeral={ephemeral}, content='{str(content)[:70]}...'")
-    channel = None
-    guild = None
-    is_interaction = isinstance(target, nextcord.Interaction)
-    is_context = isinstance(target, commands.Context)
+    @commands.command(name='use')
+    async def use(self, ctx: commands.Context, item_id: str):
+        """Sử dụng một vật phẩm tiêu thụ từ túi đồ của bạn."""
+        if not ctx.guild:
+            await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
+            return
+            
+        author_id = ctx.author.id
+        guild_id = ctx.guild.id
+        item_id_to_use = item_id.lower().strip()
 
-    if is_interaction:
-        channel = target.channel
-        guild = target.guild
-    elif is_context: 
-        channel = target.channel
-        guild = target.guild
-
-    if guild and channel:
         try:
-            economy_data = getattr(target.bot, 'economy_data', load_economy_data())
-            guild_config_data = get_or_create_guild_config(economy_data, guild.id)
-            if channel.id in guild_config_data.get("muted_channels", []) and not ephemeral:
-                utils_logger.warning(f"TRY_SEND_DEBUG: Kênh {channel.id} bị mute, tin nhắn công khai bị chặn.")
-                if is_interaction and hasattr(target.user, 'guild_permissions') and target.user.guild_permissions.administrator:
-                    try:
-                        if not target.response.is_done(): await target.response.send_message(f"{ICON_ERROR} Bot đang bị tắt tiếng công khai trong kênh này.", ephemeral=True, delete_after=10)
-                        else: await target.followup.send(f"{ICON_ERROR} Bot đang bị tắt tiếng công khai trong kênh này.", ephemeral=True, delete_after=10)
-                    except Exception as admin_warn_exc: utils_logger.error(f"TRY_SEND_DEBUG: Lỗi gửi cảnh báo mute cho admin: {admin_warn_exc}")
-                return None
-        except Exception as e_get_config:
-            utils_logger.error(f"TRY_SEND_DEBUG: Lỗi khi get_guild_config cho mute check: {e_get_config}", exc_info=True)
-    
-    sent_message = None
-    try:
-        if is_context:
-            sent_message = await target.send(content=content, embed=embed)
-        elif is_interaction:
-            if target.response.is_done(): 
-                sent_message = await target.followup.send(content=content, embed=embed, ephemeral=ephemeral)
-            else: 
-                await target.response.send_message(content=content, embed=embed, ephemeral=ephemeral)
-        return sent_message
-    except Exception as e: 
-        utils_logger.error(f"TRY_SEND_DEBUG: Lỗi không xác định khi gửi tin nhắn: {e}", exc_info=True)
-    return None
+            economy_data = self.bot.economy_data
+            global_profile = get_or_create_global_user_profile(economy_data, author_id)
+            local_data = get_or_create_user_local_data(global_profile, guild_id)
 
-async def is_bot_moderator(ctx: commands.Context) -> bool:
-    try:
-        if await ctx.bot.is_owner(ctx.author):
-            return True
-    except Exception as e_owner_check:
-        utils_logger.error(f"Lỗi khi kiểm tra is_owner: {e_owner_check}", exc_info=True)
-    try:
-        moderator_ids = load_moderator_ids()
-        if ctx.author.id in moderator_ids:
-            return True
-    except Exception as e_load_mods:
-        utils_logger.error(f"Lỗi khi tải danh sách moderator: {e_load_mods}", exc_info=True)
-    return False
+            # Tìm vật phẩm trong cả hai túi đồ
+            inventory_local = local_data.get("inventory_local", [])
+            inventory_global = global_profile.get("inventory_global", [])
+            
+            item_to_remove = None
+            source_inventory = None
 
-async def check_is_bot_moderator_interaction(interaction: nextcord.Interaction) -> bool:
-    if await interaction.client.is_owner(interaction.user):
-        return True
-    try:
-        moderator_ids = load_moderator_ids() 
-        if interaction.user.id in moderator_ids:
-            return True
-    except Exception as e:
-        utils_logger.error(f"Lỗi khi tải danh sách moderator trong check_is_bot_moderator_interaction: {e}", exc_info=True)
-        return False
-    
-    try:
-        if not interaction.response.is_done():
-             await interaction.response.send_message(f"{ICON_ERROR} Bạn không có đủ quyền (Moderator/Owner) để sử dụng lệnh này.", ephemeral=True)
+            # Ưu tiên tìm trong túi local trước
+            for item in inventory_local:
+                if isinstance(item, dict) and item.get("item_id") == item_id_to_use:
+                    item_to_remove = item
+                    source_inventory = inventory_local
+                    break
+            
+            if not item_to_remove:
+                for item in inventory_global:
+                    if isinstance(item, dict) and item.get("item_id") == item_id_to_use:
+                        item_to_remove = item
+                        source_inventory = inventory_global
+                        break
+            
+            if not item_to_remove:
+                await try_send(ctx, content=f"{ICON_ERROR} Bạn không có vật phẩm `{item_id_to_use}` trong túi đồ.")
+                return
+
+            # Kiểm tra xem vật phẩm có thể sử dụng được không
+            item_details = self.bot.item_definitions.get(item_id_to_use, {})
+            if not item_details or "effect" not in item_details:
+                await try_send(ctx, content=f"{ICON_ERROR} Bạn không thể 'dùng' vật phẩm này.")
+                return
+            
+            # Áp dụng hiệu ứng
+            effect = item_details["effect"]
+            stat_to_change = effect["stat"]
+            value_to_add = effect["value"]
+            
+            stats = local_data.get("survival_stats")
+            original_value = stats[stat_to_change]
+            stats[stat_to_change] = min(100, original_value + value_to_add) # Không cho vượt quá 100
+
+            # Xóa vật phẩm đã dùng
+            source_inventory.remove(item_to_remove)
+            
+            stat_name_vn = {"health": "Máu", "hunger": "Độ no", "energy": "Năng lượng"}
+            stat_name = stat_name_vn.get(stat_to_change, stat_to_change)
+            
+            await try_send(ctx, content=f"{ICON_SUCCESS} Bạn đã dùng **{item_details['description']}** và hồi phục **{value_to_add} {stat_name}** {ICON_SURVIVAL}.")
+            logger.info(f"User {author_id} đã dùng {item_id_to_use}, hồi {value_to_add} {stat_to_change}.")
+
+        except Exception as e:
+            logger.error(f"Lỗi trong lệnh 'use' cho user {author_id}: {e}", exc_info=True)
+            await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi bạn sử dụng vật phẩm.")
+
+
+def setup(bot: commands.Bot):
+    bot.add_cog(UseCommandCog(bot))
+n.response.send_message(f"{ICON_ERROR} Bạn không có đủ quyền (Moderator/Owner) để sử dụng lệnh này.", ephemeral=True)
     except Exception as e:
         utils_logger.error(f"Lỗi gửi tin nhắn từ chối quyền trong check_is_bot_moderator_interaction: {e}")
         
