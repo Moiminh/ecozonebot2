@@ -3,12 +3,11 @@ import nextcord
 from nextcord.ext import commands, tasks
 import logging
 
-from core.database import load_economy_data, save_economy_data
 from core.icons import ICON_WARNING, ICON_ECOIN
 
 logger = logging.getLogger(__name__)
 
-# Các hằng số cho sự suy giảm, có thể đưa vào config.py
+# Các hằng số cho sự suy giảm
 HUNGER_DECAY_PER_HOUR = 2
 ENERGY_DECAY_PER_HOUR = 3
 HEALTH_DECAY_WHEN_STARVING = 5
@@ -18,7 +17,7 @@ class SurvivalTaskCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.stat_decay_loop.start()
-        logger.info("SurvivalTaskCog initialized and stat decay task started.")
+        logger.info("SurvivalTaskCog (v2 - Refactored) initialized and stat decay task started.")
 
     def cog_unload(self):
         self.stat_decay_loop.cancel()
@@ -32,7 +31,8 @@ class SurvivalTaskCog(commands.Cog):
         logger.info("Survival Decay Task: Running...")
         
         try:
-            economy_data = load_economy_data()
+            # Sử dụng cache
+            economy_data = self.bot.economy_data
             users_data = economy_data.get("users", {})
 
             # Lặp qua tất cả người chơi và tất cả các server họ đã tham gia
@@ -41,7 +41,7 @@ class SurvivalTaskCog(commands.Cog):
                     
                     stats = local_data.get("survival_stats")
                     if not stats:
-                        continue # Bỏ qua nếu người dùng không có dữ liệu sinh tồn
+                        continue
 
                     # --- Logic suy giảm ---
                     stats["hunger"] = max(0, stats["hunger"] - HUNGER_DECAY_PER_HOUR)
@@ -53,17 +53,14 @@ class SurvivalTaskCog(commands.Cog):
 
                         # --- Hậu quả khi ngất xỉu ---
                         if stats["health"] == 0:
-                            # Phạt tiền
                             earned_balance = local_data["local_balance"]["earned"]
                             penalty = int(earned_balance * FAINT_PENALTY_PERCENTAGE)
                             local_data["local_balance"]["earned"] -= penalty
                             
-                            # Hồi phục lại một chút để tránh vòng lặp "chết"
                             stats["health"] = 50
                             stats["hunger"] = 50
                             stats["energy"] = 50
 
-                            # Gửi tin nhắn riêng cho người chơi
                             try:
                                 user = await self.bot.fetch_user(int(user_id))
                                 guild = self.bot.get_guild(int(guild_id))
@@ -77,8 +74,8 @@ class SurvivalTaskCog(commands.Cog):
                             except Exception as dm_error:
                                 logger.error(f"Could not send faint DM to {user_id}: {dm_error}")
 
-            save_economy_data(economy_data)
-            logger.info("Survival Decay Task: Finished and data saved.")
+            # Không cần save, autosave task sẽ lo việc này
+            logger.info("Survival Decay Task: Finished.")
 
         except Exception as e:
             logger.error(f"Error in Survival Decay Task: {e}", exc_info=True)
