@@ -29,11 +29,30 @@ from core.utils import try_send
 from core.config import (
     ROB_COOLDOWN, ROB_SUCCESS_RATE, ROB_FINE_RATE,
     ROB_ENERGY_COST, ROB_HUNGER_COST
+# bot/cogs/earn/rob_cmd.py
+import nextcord
+from nextcord.ext import commands
+import random
+from datetime import datetime
+import logging
+
+from core.database import (
+    load_economy_data,
+    save_economy_data,
+    get_or_create_global_user_profile,
+    get_or_create_user_local_data
+)
+from core.utils import try_send
+from core.config import (
+    ROB_COOLDOWN, ROB_SUCCESS_RATE, ROB_FINE_RATE,
+    ROB_ENERGY_COST, ROB_HUNGER_COST
 )
 from core.icons import (
     ICON_LOADING, ICON_ERROR, ICON_INFO, ICON_ROB,
     ICON_MONEY_BAG, ICON_SURVIVAL
 )
+# [SỬA LỖI] Thêm import còn thiếu
+from core.travel_manager import handle_travel_event
 
 logger = logging.getLogger(__name__)
 
@@ -59,10 +78,13 @@ class RobCommandCog(commands.Cog, name="Rob Command"):
         try:
             economy_data = load_economy_data()
             author_global_profile = get_or_create_global_user_profile(economy_data, author_id)
-        if author_global_profile.get("last_active_guild_id") != guild_id:
-            await handle_travel_event(ctx, self.bot)
-            logger.info(f"User {author_id} has 'traveled' to guild {guild_id}. (Travel event)")
-        author_global_profile["last_active_guild_id"] = guild_id
+            # --- Kiểm tra Last Active Guild ---
+            if author_global_profile.get("last_active_guild_id") != guild_id:
+                await handle_travel_event(ctx, self.bot)
+                logger.info(f"User {author_id} has 'traveled' to guild {guild_id}. (Travel event)")
+                # Thêm return để ngăn lệnh chạy tiếp trước khi travel hoàn tất
+                return
+            author_global_profile["last_active_guild_id"] = guild_id
 
             target_global_profile = get_or_create_global_user_profile(economy_data, target_id)
             author_local_data = get_or_create_user_local_data(author_global_profile, guild_id)
@@ -113,6 +135,20 @@ class RobCommandCog(commands.Cog, name="Rob Command"):
                 fine_amount = int(author_local_data["local_balance"]["earned"] * ROB_FINE_RATE)
                 fine_amount = min(fine_amount, author_local_data["local_balance"]["earned"])
                 author_local_data["local_balance"]["earned"] -= fine_amount
+
+                await try_send(ctx, content=f"👮 {ICON_ERROR} Bạn đã bị bắt và bị phạt **{fine_amount:,}** {ICON_MONEY_BAG} từ Ví Local của bạn.")
+
+            save_economy_data(economy_data)
+
+        except Exception as e:
+            logger.error(f"Lỗi trong lệnh 'rob' cho user {author_id}: {e}", exc_info=True)
+            await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi thực hiện hành vi cướp.")
+
+def setup(bot: commands.Bot):
+    bot.add_cog(RobCommandCog(bot))
+
+# [SỬA LỖI] Loại bỏ khối code bị trùng lặp
+e_amount
 
                 await try_send(ctx, content=f"👮 {ICON_ERROR} Bạn đã bị bắt và bị phạt **{fine_amount:,}** {ICON_MONEY_BAG} từ Ví Local của bạn.")
 
