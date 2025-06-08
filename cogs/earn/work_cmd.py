@@ -4,17 +4,21 @@ from nextcord.ext import commands
 import random
 from datetime import datetime
 import logging
+# bot/cogs/earn/work_cmd.py
+import nextcord
+from nextcord.ext import commands
+import random
+from datetime import datetime
+import logging
 
-from core.travel_manager import handle_travel_event
-
-class WorkCommandCog(commands.Cog, name="Work Command"):
 from core.database import (
     load_economy_data,
     save_economy_data,
     get_or_create_global_user_profile,
     get_or_create_user_local_data
 )
-from core.utils import try_send
+# [CẢI TIẾN] Import decorator mới
+from core.utils import try_send, require_travel_check
 from core.config import WORK_COOLDOWN, WORK_ENERGY_COST, WORK_HUNGER_COST
 from core.leveling import check_and_process_levelup
 from core.icons import (
@@ -27,29 +31,24 @@ logger = logging.getLogger(__name__)
 class WorkCommandCog(commands.Cog, name="Work Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("WorkCommandCog (v3 - with Survival) initialized.")
+        logger.info("WorkCommandCog (v4 - Refactored) initialized.")
 
     @commands.command(name='work', aliases=['w'])
+    @commands.guild_only() # Đảm bảo lệnh chỉ chạy trong server
+    @require_travel_check # Áp dụng decorator ở đây
     async def work(self, ctx: commands.Context):
         """Làm việc chăm chỉ để kiếm tiền sạch và kinh nghiệm (tiêu tốn năng lượng và độ no)."""
-        if not ctx.guild:
-            await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
-            return
-
         author_id = ctx.author.id
         guild_id = ctx.guild.id
         
         try:
-            economy_data = load_economy_data()
+            # [CẢI TIẾN] Không cần load/save data trong mỗi lệnh nữa nếu dùng cache
+            # Thay vào đó, ta truy cập trực tiếp vào dữ liệu của bot
+            economy_data = self.bot.economy_data
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
-             if global_profile.get("last_active_guild_id") != guild_id:
-                 await handle_travel_event(ctx, self.bot)
-                logger.info(f"User {author_id} has 'traveled' to guild {guild_id}. (Travel event logic to be added here)")
-            global_profile = get_or_create_global_user_profile(economy_data, author_id)
-
             local_data = get_or_create_user_local_data(global_profile, guild_id)
 
-            # --- KIỂM TRA CHỈ SỐ SINH TỒN (MỚI) ---
+            # --- KIỂM TRA CHỈ SỐ SINH TỒN ---
             stats = local_data.get("survival_stats")
             if stats["energy"] < WORK_ENERGY_COST:
                 await try_send(ctx, content=f"{ICON_SURVIVAL} Bạn quá mệt mỏi để làm việc! Hãy nghỉ ngơi hoặc dùng vật phẩm hồi phục.")
@@ -76,15 +75,13 @@ class WorkCommandCog(commands.Cog, name="Work Command"):
             local_data["xp_local"] += xp_earned_local
             global_profile["xp_global"] += xp_earned_global
             global_profile["cooldowns"]["work"] = now
-            global_profile["last_active_guild_id"] = guild_id
+            # [CẢI TIẾN] Không cần cập nhật last_active_guild_id ở đây nữa, decorator đã làm
             
             # Trừ chỉ số sinh tồn
             stats["energy"] = max(0, stats["energy"] - WORK_ENERGY_COST)
             stats["hunger"] = max(0, stats["hunger"] - WORK_HUNGER_COST)
-            # lưu lại server hoạt động cuối cùng
-            global_profile["last_active_guild_id"] = guild_id
+            
             # Gửi thông báo cho người dùng
-            total_local_balance = local_data["local_balance"]["earned"] + local_data["local_balance"]["adadd"]
             await try_send(
                 ctx, 
                 content=(
@@ -98,12 +95,15 @@ class WorkCommandCog(commands.Cog, name="Work Command"):
             await check_and_process_levelup(ctx, local_data, 'local')
             await check_and_process_levelup(ctx, global_profile, 'global')
 
-            # Lưu lại toàn bộ dữ liệu
-            save_economy_data(economy_data)
+            # [CẢI TIẾN] Không cần save data ở đây, tác vụ autosave sẽ làm
 
         except Exception as e:
             logger.error(f"Lỗi trong lệnh 'work' (v4) cho user {author_id}: {e}", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn đang làm việc.")
+
+def setup(bot: commands.Bot):
+    bot.add_cog(WorkCommandCog(bot))
+f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn đang làm việc.")
 
 def setup(bot: commands.Bot):
     bot.add_cog(WorkCommandCog(bot))
