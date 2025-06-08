@@ -8,12 +8,16 @@ logger = logging.getLogger(__name__)
 
 # --- CÁC CẤU TRÚC DỮ LIỆU MẶC ĐỊNH ---
 
-DEFAULT_USER_LOCAL_DATA = {
-    "local_balance": {"earned": 0, "adadd": 0},
+DEFAULT_USER_LOCAL_DATA = { 
+     "local_balance": {"earned": 0, "adadd": 0},
     "inventory_local": [],
     "tickets": [],
     "level_local": 1,
     "xp_local": 0,
+    "survival_stats": {           
+        "health": 100,            # Máu
+        "hunger": 100,            # Độ no
+        "energy": 100             # Năng lượng
 }
 
 DEFAULT_GLOBAL_USER_PROFILE = {
@@ -29,6 +33,8 @@ DEFAULT_GLOBAL_USER_PROFILE = {
         "slots": 0, "coinflip": 0, "dice": 0, "launder": 0,
         "last_tainted_sell_date": "1970-01-01", # Thêm các trường cho việc bán đồ bẩn
         "tainted_sells_today": 0
+    }
+}
     },
     "server_data": {}
 }
