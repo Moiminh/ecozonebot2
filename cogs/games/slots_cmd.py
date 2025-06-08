@@ -141,29 +141,72 @@ class SlotsCommandCog(commands.Cog, name="Slots Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         logger.info("SlotsCommandCog (v4 - with Travel) initialized.")
+# bot/cogs/games/slots_cmd.py
+import nextcord
+from nextcord.ext import commands
+import random
+import logging
+from datetime import datetime
+
+from core.database import get_or_create_global_user_profile, get_or_create_user_local_data
+from core.utils import try_send, require_travel_check
+from core.config import SLOTS_COOLDOWN, SLOTS_EMOJIS, BASE_CATCH_CHANCE, WANTED_LEVEL_CATCH_MULTIPLIER
+from core.icons import (
+    ICON_LOADING, ICON_ERROR, ICON_SLOTS, ICON_MONEY_BAG, 
+    ICON_ECOIN, ICON_ECOBIT, ICON_WARNING
+)
+
+logger = logging.getLogger(__name__)
+
+class BetConfirmationView(nextcord.ui.View):
+    # Giữ nguyên class View này
+    def __init__(self, ctx, game_cog_instance, bet_amount):
+        super().__init__(timeout=120)
+        self.ctx = ctx
+        self.game_cog = game_cog_instance
+        self.bet = bet_amount
+        self.interaction_user = ctx.author
+        self.message = None
+
+    async def interaction_check(self, interaction: nextcord.Interaction) -> bool:
+        if interaction.user.id != self.interaction_user.id:
+            await interaction.response.send_message("Đây không phải là ván cược của bạn!", ephemeral=True)
+            return False
+        return True
+
+    async def on_timeout(self):
+        if self.message:
+            for item in self.children:
+                item.disabled = True
+            await self.message.edit(content="⏳ Ván cược đã hết hạn.", view=self)
+
+    @nextcord.ui.button(label="Cược bằng 🪙Ecoin (An toàn)", style=nextcord.ButtonStyle.green, custom_id="bet_ecoin")
+    async def bet_with_ecoin(self, button: nextcord.ui.Button, interaction: nextcord.Interaction):
+        await interaction.response.defer()
+        await self.game_cog.play_slots_game(self, interaction, "earned")
+
+    @nextcord.ui.button(label="Cược bằng 🧪Ecobit (Rủi ro)", style=nextcord.ButtonStyle.red, custom_id="bet_ecobit")
+    async def bet_with_ecobit(self, button: nextcord.ui.Button, interaction: nextcord.Interaction):
+        await interaction.response.defer()
+        await self.game_cog.play_slots_game(self, interaction, "adadd")
+
+class SlotsCommandCog(commands.Cog, name="Slots Command"):
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+        logger.info("SlotsCommandCog (v5 - Refactored) initialized.")
 
     @commands.command(name='slots', aliases=['sl'])
+    @commands.guild_only()
+    @require_travel_check
     async def slots(self, ctx: commands.Context, bet: int):
         """Quay máy xèng để thử vận may."""
-        if not ctx.guild:
-            await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
-            return
-
         if bet <= 0:
             await try_send(ctx, content=f"{ICON_ERROR} Tiền cược phải lớn hơn 0!")
             return
 
-        economy_data = load_economy_data()
+        economy_data = self.bot.economy_data
         global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
-
-        # --- Kiểm tra Last Active Guild ---
-        guild_id = ctx.guild.id
-        if global_profile.get("last_active_guild_id") != guild_id:
-            await handle_travel_event(ctx, self.bot)
-            logger.info(f"User {ctx.author.id} has 'traveled' to guild {guild_id}.")
-        global_profile["last_active_guild_id"] = guild_id
-
-        local_data = get_or_create_user_local_data(global_profile, guild_id)
+        local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
 
         now = datetime.now().timestamp()
         last_slots = global_profile.get("cooldowns", {}).get("slots", 0)
@@ -172,7 +215,7 @@ class SlotsCommandCog(commands.Cog, name="Slots Command"):
             await try_send(ctx, content=f"{ICON_LOADING} Chơi chậm thôi! Chờ: **{time_left}**.")
             return
 
-        view = BetConfirmationView(ctx, self, bet, "slots")
+        view = BetConfirmationView(ctx, self, bet)
         earned_balance = local_data["local_balance"]["earned"]
         adadd_balance = local_data["local_balance"]["adadd"]
 
@@ -190,21 +233,13 @@ class SlotsCommandCog(commands.Cog, name="Slots Command"):
             view.message = msg
 
     async def play_slots_game(self, view: BetConfirmationView, interaction: nextcord.Interaction, payment_type: str):
-        """Hàm xử lý logic cốt lõi của game Slots."""
         ctx = view.ctx
         bet = view.bet
 
-        economy_data = load_economy_data()
+        # [SỬA] Sử dụng cache, không load/save
+        economy_data = self.bot.economy_data
         global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
-
-        # --- Kiểm tra Last Active Guild ---
-        guild_id = ctx.guild.id
-        if global_profile.get("last_active_guild_id") != guild_id:
-            await handle_travel_event(ctx, self.bot)
-            logger.info(f"User {ctx.author.id} has 'traveled' to guild {guild_id}.")
-        global_profile["last_active_guild_id"] = guild_id
-
-        local_data = get_or_create_user_local_data(global_profile, guild_id)
+        local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
 
         local_data["local_balance"][payment_type] -= bet
         
@@ -214,13 +249,13 @@ class SlotsCommandCog(commands.Cog, name="Slots Command"):
             if random.random() < catch_chance:
                 fine_amount = min(local_data["local_balance"]["earned"], int(bet * 0.5))
                 local_data["local_balance"]["earned"] -= fine_amount
-                global_profile["wanted_level"] += 0.1
-                save_economy_data(economy_data)
+                global_profile["wanted_level"] = global_profile.get("wanted_level", 0.0) + 0.1
                 logger.warning(f"User {ctx.author.id} bị bắt khi cược {bet} bằng Ecobit.")
                 await view.message.edit(content=f"🚨 **BỊ BẮT!** Cảnh sát phát hiện bạn dùng `🧪Ecobit` để cờ bạc! Bạn bị phạt **{fine_amount:,}** `🪙Ecoin`.", view=None)
                 return
 
         global_profile.setdefault("cooldowns", {})["slots"] = datetime.now().timestamp()
+        
         rolls = [random.choice(SLOTS_EMOJIS) for _ in range(3)]
         header_msg = f"{ICON_SLOTS} Máy xèng quay: **[{' | '.join(rolls)}]** {ICON_SLOTS}\n"
         winnings = 0
@@ -230,14 +265,11 @@ class SlotsCommandCog(commands.Cog, name="Slots Command"):
         elif rolls[0] == rolls[1] or rolls[1] == rolls[2]:
             winnings = bet * 2
         
-        final_msg = ""
         if winnings > 0:
             local_data["local_balance"]["earned"] += winnings
             final_msg = f"🎉 Chúc mừng! Bạn thắng và nhận được **{winnings:,}** {ICON_ECOIN}!"
         else:
             final_msg = "😭 Tiếc quá, bạn thua rồi!"
-        
-        save_economy_data(economy_data)
         
         new_total_balance = local_data["local_balance"]["earned"] + local_data["local_balance"]["adadd"]
         await view.message.edit(content=f"{header_msg}{final_msg}\nVí Local của bạn giờ là: **{new_total_balance:,}** {ICON_MONEY_BAG}", view=None)
