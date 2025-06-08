@@ -4,31 +4,19 @@ from nextcord.ext import commands
 import logging
 from datetime import date
 
-from core.database import (
-    load_economy_data,
-    save_economy_data,
-    get_or_create_global_user_profile,
-    get_or_create_user_local_data
-)
+from core.database import get_or_create_global_user_profile, get_or_create_user_local_data
 from core.utils import try_send
-from core.config import (
-    SHOP_ITEMS, TAINTED_ITEM_SELL_LIMIT, TAINTED_ITEM_SELL_RATE,
-    TAINTED_ITEM_TAX_RATE, FOREIGN_ITEM_SELL_PENALTY
-)
-from core.icons import (
-    ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO,
-    ICON_ECOIN
-)
+from core.config import TAINTED_ITEM_SELL_LIMIT, TAINTED_ITEM_SELL_RATE, TAINTED_ITEM_TAX_RATE, FOREIGN_ITEM_SELL_PENALTY
+from core.icons import ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO, ICON_ECOIN
 
 logger = logging.getLogger(__name__)
 
 class SellCommandCog(commands.Cog, name="Sell Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("SellCommandCog (v3 - Full) initialized.")
+        logger.info("SellCommandCog (v4 - Refactored) initialized.")
 
     @commands.command(name='sell')
-    # [SỬA LỖI] Sửa lỗi cú pháp 'commanads' thành 'commands'
     async def sell(self, ctx: commands.Context, item_id: str, quantity: int = 1):
         """Bán một vật phẩm từ túi đồ của bạn. Giá trị thu về phụ thuộc vào nguồn gốc vật phẩm."""
         if not ctx.guild:
@@ -42,12 +30,12 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
             await try_send(ctx, content=f"{ICON_ERROR} Số lượng bán phải lớn hơn 0.")
             return
 
-        if item_id_to_sell not in SHOP_ITEMS:
+        if item_id_to_sell not in self.bot.item_definitions:
             await try_send(ctx, content=f"{ICON_ERROR} Vật phẩm `{item_id}` không tồn tại.")
             return
 
         try:
-            economy_data = load_economy_data()
+            economy_data = self.bot.economy_data
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
             local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
 
@@ -71,7 +59,7 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
                 
                 is_tainted = item_to_sell.get("is_tainted", False)
                 is_foreign = item_to_sell.get("is_foreign", False)
-                base_details = SHOP_ITEMS[item_id_to_sell]
+                base_details = self.bot.item_definitions[item_id_to_sell]
                 final_proceeds = 0
 
                 if is_tainted:
@@ -112,8 +100,6 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
 
             local_data["local_balance"]["earned"] += total_earnings
             
-            save_economy_data(economy_data)
-
             logger.info(f"User {author_id} đã bán {items_sold_count}x {item_id_to_sell}, thu về {total_earnings} Ecoin.")
 
             msg = f"{ICON_SUCCESS} Bạn đã bán thành công **{items_sold_count}x {item_id_to_sell}** và nhận được tổng cộng **{total_earnings:,}** {ICON_ECOIN}."
@@ -123,10 +109,8 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
             await try_send(ctx, content=msg)
 
         except Exception as e:
-            logger.error(f"Lỗi trong lệnh 'sell' (v3) cho user {author_id}: {e}", exc_info=True)
+            logger.error(f"Lỗi trong lệnh 'sell' cho user {author_id}: {e}", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn bán hàng.")
 
 def setup(bot: commands.Bot):
     bot.add_cog(SellCommandCog(bot))
-
-# [SỬA LỖI] Loại bỏ khối code bị trùng lặp
