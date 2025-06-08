@@ -12,6 +12,16 @@ import logging
 from core.database import (
     load_economy_data,
     save_economy_data,
+# bot/cogs/earn/rob_cmd.py
+import nextcord
+from nextcord.ext import commands
+import random
+from datetime import datetime
+import logging
+
+from core.database import (
+    load_economy_data,
+    save_economy_data,
     get_or_create_global_user_profile,
     get_or_create_user_local_data
 )
@@ -109,6 +119,13 @@ class RobCommandCog(commands.Cog, name="Rob Command"):
             save_economy_data(economy_data)
 
         except Exception as e:
+            logger.error(f"Lỗi trong lệnh 'rob' cho user {author_id}: {e}", exc_info=True)
+            await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi thực hiện hành vi cướp.")
+
+def setup(bot: commands.Bot):
+    bot.add_cog(RobCommandCog(bot))
+
+
             logger.error(f"Lỗi trong lệnh 'rob' cho user {author_id}: {e}", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi thực hiện hành vi cướp.")
 
