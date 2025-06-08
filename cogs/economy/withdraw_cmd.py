@@ -14,13 +14,14 @@ from core.icons import (
     ICON_BANK, ICON_MONEY_BAG, ICON_SUCCESS, ICON_ERROR,
     ICON_WARNING, ICON_INFO, ICON_TIEN_SACH
 )
+from core.travel_manager import handle_travel_event
 
 logger = logging.getLogger(__name__)
 
 class WithdrawCommandCog(commands.Cog, name="Withdraw Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("WithdrawCommandCog (v2) initialized.")
+        logger.info("WithdrawCommandCog (v3) initialized.")
 
     @commands.command(name='withdraw', aliases=['wd'])
     async def withdraw(self, ctx: commands.Context, amount_str: str):
@@ -35,8 +36,14 @@ class WithdrawCommandCog(commands.Cog, name="Withdraw Command"):
         try:
             economy_data = load_economy_data()
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
+
+            # --- Kiểm tra Last Active Guild ---
+            if global_profile.get("last_active_guild_id") != guild_id:
+                await handle_travel_event(ctx, self.bot)
+                logger.info(f"User {author_id} has 'traveled' to guild {guild_id}.")
+            global_profile["last_active_guild_id"] = guild_id
+
             local_data = get_or_create_user_local_data(global_profile, guild_id)
-            
             bank_balance = global_profile.get("bank_balance", 0)
             
             # --- Xử lý số tiền muốn rút ---
@@ -82,7 +89,7 @@ class WithdrawCommandCog(commands.Cog, name="Withdraw Command"):
             )
 
         except Exception as e:
-            logger.error(f"Lỗi trong lệnh 'withdraw' (v2) cho user {author_id}: {e}", exc_info=True)
+            logger.error(f"Lỗi trong lệnh 'withdraw' (v3) cho user {author_id}: {e}", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi bạn rút tiền.")
 
 def setup(bot: commands.Bot):
