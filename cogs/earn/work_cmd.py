@@ -39,6 +39,8 @@ class WorkCommandCog(commands.Cog, name="Work Command"):
         try:
             economy_data = load_economy_data()
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
+             if global_profile.get("last_active_guild_id") != guild_id:
+                logger.info(f"User {author_id} has 'traveled' to guild {guild_id}. (Travel event logic to be added here)")
             local_data = get_or_create_user_local_data(global_profile, guild_id)
 
             # --- KIỂM TRA CHỈ SỐ SINH TỒN (MỚI) ---
@@ -73,7 +75,8 @@ class WorkCommandCog(commands.Cog, name="Work Command"):
             # Trừ chỉ số sinh tồn
             stats["energy"] = max(0, stats["energy"] - WORK_ENERGY_COST)
             stats["hunger"] = max(0, stats["hunger"] - WORK_HUNGER_COST)
-            
+            # lưu lại server hoạt động cuối cùng
+            global_profile["last_active_guild_id"] = guild_id
             # Gửi thông báo cho người dùng
             total_local_balance = local_data["local_balance"]["earned"] + local_data["local_balance"]["adadd"]
             await try_send(
@@ -93,7 +96,7 @@ class WorkCommandCog(commands.Cog, name="Work Command"):
             save_economy_data(economy_data)
 
         except Exception as e:
-            logger.error(f"Lỗi trong lệnh 'work' (v3) cho user {author_id}: {e}", exc_info=True)
+            logger.error(f"Lỗi trong lệnh 'work' (v4) cho user {author_id}: {e}", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn đang làm việc.")
 
 def setup(bot: commands.Bot):
