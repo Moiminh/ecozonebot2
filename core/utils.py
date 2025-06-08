@@ -6,8 +6,20 @@ import logging
 from .config import MODERATOR_USER_IDS
 from .database import load_economy_data, get_or_create_guild_config, load_moderator_ids
 from .icons import ICON_ERROR
-
+from .config import WANTED_LEVEL_CRIMINAL_THRESHOLD, CITIZEN_TITLES, CRIMINAL_TITLES
 utils_logger = logging.getLogger(__name__)
+def get_player_title(level: int, wanted_level: float) -> str:
+    
+    title_map = CRIMINAL_TITLES if wanted_level >= WANTED_LEVEL_CRIMINAL_THRESHOLD else CITIZEN_TITLES
+    
+    current_title = ""
+    for level_threshold, title in sorted(title_map.items(), reverse=True):
+        if level >= level_threshold:
+            current_title = title
+            break
+            
+    return f"{current_title} (Level {level})"
+
 
 def is_guild_owner_check(interaction_or_ctx):
     user = interaction_or_ctx.user if isinstance(interaction_or_ctx, nextcord.Interaction) else interaction_or_ctx.author
