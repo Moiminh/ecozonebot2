@@ -113,5 +113,72 @@ class VisaCommandCog(commands.Cog, name="Visa Commands"):
             logger.error(f"Lỗi trong lệnh 'visa balance': {e}", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi xem số dư Visa.")
 
+    # --- LỆNH CON MỚI ---
+    @visa.command(name="topup")
+    async def topup_visa(self, ctx: commands.Context, unique_visa_id: str, amount: int):
+        """Nạp tiền từ Bank trung tâm vào một thẻ Visa cụ thể."""
+        if amount <= 0:
+            await try_send(ctx, content=f"{ICON_ERROR} Số tiền nạp phải lớn hơn 0.")
+            return
+
+        try:
+            economy_data = load_economy_data()
+            global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
+            
+            if global_profile["bank_balance"] < amount:
+                await try_send(ctx, content=f"{ICON_ERROR} Bạn không đủ tiền trong Bank. Cần **{amount:,}**, bạn có **{global_profile['bank_balance']:,}**.")
+                return
+
+            target_visa = next((item for item in global_profile.get("inventory_global", []) if isinstance(item, dict) and item.get("unique_id") == unique_visa_id), None)
+            
+            if not target_visa:
+                await try_send(ctx, content=f"{ICON_ERROR} Không tìm thấy thẻ Visa nào có ID `{unique_visa_id}`.")
+                return
+
+            current_balance = target_visa.get("balance", 0)
+            capacity = target_visa.get("capacity", 0)
+            if current_balance + amount > capacity:
+                await try_send(ctx, content=f"{ICON_ERROR} Thẻ này không đủ sức chứa. Cần nạp **{amount:,}**, nhưng chỉ còn trống **{capacity - current_balance:,}**.")
+                return
+
+            global_profile["bank_balance"] -= amount
+            target_visa["balance"] += amount
+            save_economy_data(economy_data)
+            
+            logger.info(f"User {ctx.author.id} đã topup {amount} vào visa {unique_visa_id}.")
+            await try_send(ctx, content=f"{ICON_SUCCESS} Đã nạp thành công **{amount:,}** vào thẻ `{unique_visa_id}`.\nSố dư mới của thẻ: **{target_visa['balance']:,}** / `{format_large_number(capacity)}`")
+
+        except Exception as e:
+            logger.error(f"Lỗi trong lệnh 'visa topup': {e}", exc_info=True)
+            await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi nạp tiền.")
+
+    # --- LỆNH CON MỚI ---
+    @visa.command(name="withdraw")
+    async def withdraw_visa(self, ctx: commands.Context, unique_visa_id: str, amount: int):
+        """Rút tiền từ một thẻ Visa cụ thể về Bank trung tâm (miễn phí)."""
+        if amount <= 0:
+            await try_send(ctx, content=f"{ICON_ERROR} Số tiền rút phải lớn hơn 0.")
+            return
+
+        try:
+            economy_data = load_economy_data()
+            global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
+            
+            target_visa = next((item for item in global_profile.get("inventory_global", []) if isinstance(item, dict) and item.get("unique_id") == unique_visa_id), None)
+            
+            if not target_visa:
+                await try_send(ctx, content=f"{ICON_ERROR} Không tìm thấy thẻ Visa nào có ID `{unique_visa_id}`.")
+                return
+
+            if target_visa.get("balance", 0) < amount:
+                await try_send(ctx, content=f"{ICON_ERROR} Thẻ `{unique_visa_id}` không đủ số dư. Cần rút **{amount:,}**, nhưng thẻ chỉ có **{target_visa.get('balance', 0):,}**.")
+                return
+
+            target_visa["balance"] -= amount
+            global_profile["bank_balance"] += amount
+            save_economy_data(economy_data)
+            
+            logger.info(f"User {ctx.author.id} đã withdraw {amount} từ visa {unique_visa_id}.")
+            await try_send(ctx, content=f"{ICON_SUCCESS} Đã rút thành công **{amount:,}** từ thẻ `{unique_visa_id}` về Bank trung tâm.\nSố dư Bank mới của bạn: **{global_profile['bank_balance']:,}** {ICON_BANK_MAIN}"
 def setup(bot: commands.Bot):
     bot.add_cog(VisaCommandCog(bot))
