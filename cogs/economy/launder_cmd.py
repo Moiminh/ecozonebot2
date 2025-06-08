@@ -5,52 +5,33 @@ import random
 import logging
 from datetime import datetime
 
-from core.database import (
-    load_economy_data,
-    save_economy_data,
-    get_or_create_global_user_profile,
-    get_or_create_user_local_data
-)
-from core.utils import try_send
-from core.config import (
-    LAUNDER_EXCHANGE_RATE, BASE_CATCH_CHANCE, 
-    WANTED_LEVEL_CATCH_MULTIPLIER
-)
+from core.database import get_or_create_global_user_profile, get_or_create_user_local_data
+from core.utils import try_send, require_travel_check
+from core.config import LAUNDER_EXCHANGE_RATE, BASE_CATCH_CHANCE, WANTED_LEVEL_CATCH_MULTIPLIER
 from core.icons import ICON_ERROR, ICON_SUCCESS, ICON_WARNING, ICON_BANK_MAIN, ICON_ECOBIT, ICON_ECOIN
-from core.travel_manager import handle_travel_event
 
 logger = logging.getLogger(__name__)
 
 class LaunderCommandCog(commands.Cog, name="Launder Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("LaunderCommandCog (v2 - with Travel) initialized.")
+        logger.info("LaunderCommandCog (v3 - Refactored) initialized.")
 
     @commands.command(name="launder")
+    @commands.guild_only()
+    @require_travel_check
     async def launder(self, ctx: commands.Context, amount: int):
         """(Game ẩn) Thử "rửa" 🧪Ecobit thành tiền Bank với rủi ro bị bắt."""
-        if not ctx.guild:
-            await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
-            return
-
         author_id = ctx.author.id
-        guild_id = ctx.guild.id
 
         if amount <= 0:
             await try_send(ctx, content=f"{ICON_ERROR} Số tiền cần rửa phải lớn hơn 0.")
             return
             
         try:
-            economy_data = load_economy_data()
+            economy_data = self.bot.economy_data
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
-
-            # --- Kiểm tra Last Active Guild ---
-            if global_profile.get("last_active_guild_id") != guild_id:
-                await handle_travel_event(ctx, self.bot)
-                logger.info(f"User {author_id} has 'traveled' to guild {guild_id}.")
-            global_profile["last_active_guild_id"] = guild_id
-
-            local_data = get_or_create_user_local_data(global_profile, guild_id)
+            local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
             adadd_balance = local_data["local_balance"]["adadd"]
             if adadd_balance < amount:
                 await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ {amount:,} 🧪Ecobit để thực hiện.")
@@ -85,8 +66,6 @@ class LaunderCommandCog(commands.Cog, name="Launder Command"):
 
                 logger.info(f"LAUNDER SUCCESS: User {author_id} đã rửa {amount} Ecobit thành {bank_gained} bank.")
                 await try_send(ctx, content=f"{ICON_SUCCESS} Giao dịch mờ ám thành công!\n- Bạn đã chi **{amount:,}** {ICON_ECOBIT}.\n- Bạn nhận lại được **{bank_gained:,}** {ICON_BANK_MAIN} trong Bank.\n- {ICON_WARNING} Mức độ truy nã của bạn đã tăng nhẹ.")
-
-            save_economy_data(economy_data)
 
         except Exception as e:
             logger.error(f"Lỗi trong lệnh 'launder': {e}", exc_info=True)
