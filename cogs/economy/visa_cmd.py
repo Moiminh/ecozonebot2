@@ -10,26 +10,27 @@ from core.database import (
     get_or_create_global_user_profile
 )
 from core.utils import try_send, format_large_number
-from core.config import UTILITY_ITEMS, COMMAND_PREFIX
+from core.config import UTILITY_ITEMS, COMMAND_PREFIX, UPGRADE_VISA_COST
 from core.icons import (
     ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO, 
-    ICON_BANK, ICON_ECOBANK, ICON_ECOVISA
+    ICON_BANK_MAIN, ICON_ECOBANK, ICON_ECOVISA
 )
 
 logger = logging.getLogger(__name__)
 
 class VisaCommandCog(commands.Cog, name="Visa Commands"):
+    """
+    Cog chứa tất cả các lệnh liên quan đến việc quản lý và sử dụng
+    Ecobank (Visa Nội địa) và Ecovisa (Visa Quốc tế).
+    """
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         logger.info("VisaCommandCog (v3 - Full) initialized.")
 
     @commands.group(name='visa', invoke_without_command=True)
     async def visa(self, ctx: commands.Context):
-        """
-        Lệnh cha cho các hoạt động liên quan đến thẻ Visa.
-        Gõ !help visa để xem các lệnh con.
-        """
-        await try_send(ctx, content=f"{ICON_INFO} Vui lòng sử dụng một lệnh con, ví dụ: `{COMMAND_PREFIX}visa buy`, `{COMMAND_PREFIX}visa balance`.")
+        """Lệnh cha cho các hoạt động liên quan đến thẻ Visa. Gõ !help visa để xem các lệnh con."""
+        await try_send(ctx, content=f"{ICON_INFO} Vui lòng sử dụng một lệnh con. Gõ `{COMMAND_PREFIX}help visa` để xem chi tiết.")
 
     @visa.command(name="buy")
     async def buy_visa(self, ctx: commands.Context, visa_id_str: str):
@@ -37,7 +38,7 @@ class VisaCommandCog(commands.Cog, name="Visa Commands"):
         item_id_to_buy = visa_id_str.lower().strip()
 
         if item_id_to_buy not in UTILITY_ITEMS or UTILITY_ITEMS[item_id_to_buy].get("type") != "visa":
-            await try_send(ctx, content=f"{ICON_ERROR} Loại Visa `{visa_id_str}` không hợp lệ. Dùng `!shop` để xem các loại thẻ có sẵn.")
+            await try_send(ctx, content=f"{ICON_ERROR} Loại Visa `{visa_id_str}` không hợp lệ. Hãy xem các loại thẻ có trong shop.")
             return
 
         if not ctx.guild and UTILITY_ITEMS[item_id_to_buy].get("visa_type") == "local":
@@ -71,7 +72,7 @@ class VisaCommandCog(commands.Cog, name="Visa Commands"):
             save_economy_data(economy_data)
 
             logger.info(f"User {ctx.author.id} đã mua {item_id_to_buy} với giá {price} từ bank.")
-            await try_send(ctx, content=f"{ICON_SUCCESS} Bạn đã mua thành công **{visa_details['name']}**! Thẻ đã được thêm vào túi đồ toàn cục của bạn. Hãy dùng `{COMMAND_PREFIX}visa topup` để nạp tiền vào thẻ.")
+            await try_send(ctx, content=f"{ICON_SUCCESS} Bạn đã mua thành công **{visa_details['name']}**! Thẻ đã được thêm vào túi đồ toàn cục. Dùng `{COMMAND_PREFIX}visa topup` để nạp tiền vào thẻ.")
 
         except Exception as e:
             logger.error(f"Lỗi trong lệnh 'visa buy': {e}", exc_info=True)
@@ -136,7 +137,7 @@ class VisaCommandCog(commands.Cog, name="Visa Commands"):
             target_visa = next((item for item in global_profile.get("inventory_global", []) if isinstance(item, dict) and item.get("unique_id") == unique_visa_id), None)
             
             if not target_visa:
-                await try_send(ctx, content=f"{ICON_ERROR} Không tìm thấy thẻ Visa nào có ID `{unique_visa_id}`. Dùng `{COMMAND_PREFIX}visa balance` để xem ID các thẻ của bạn.")
+                await try_send(ctx, content=f"{ICON_ERROR} Không tìm thấy thẻ Visa nào có ID `{unique_visa_id}`.")
                 return
 
             current_balance = target_visa.get("balance", 0)
@@ -170,7 +171,7 @@ class VisaCommandCog(commands.Cog, name="Visa Commands"):
             target_visa = next((item for item in global_profile.get("inventory_global", []) if isinstance(item, dict) and item.get("unique_id") == unique_visa_id), None)
             
             if not target_visa:
-                await try_send(ctx, content=f"{ICON_ERROR} không tìm thấy thẻ Visa nào có ID `{unique_visa_id}`. Dùng `{COMMAND_PREFIX}visa balance` để xem ID các thẻ của bạn.")
+                await try_send(ctx, content=f"{ICON_ERROR} Không tìm thấy thẻ Visa nào có ID `{unique_visa_id}`.")
                 return
 
             if target_visa.get("balance", 0) < amount:
@@ -182,11 +183,59 @@ class VisaCommandCog(commands.Cog, name="Visa Commands"):
             save_economy_data(economy_data)
             
             logger.info(f"User {ctx.author.id} đã withdraw {amount} từ visa {unique_visa_id}.")
-            await try_send(ctx, content=f"{ICON_SUCCESS} Đã rút thành công **{amount:,}** từ thẻ `{unique_visa_id}` về Bank trung tâm.\nSố dư Bank mới của bạn: **{global_profile['bank_balance']:,}** {ICON_BANK}")
+            await try_send(ctx, content=f"{ICON_SUCCESS} Đã rút thành công **{amount:,}** từ thẻ `{unique_visa_id}` về Bank trung tâm.\nSố dư Bank mới của bạn: **{global_profile['bank_balance']:,}** {ICON_BANK_MAIN}")
 
         except Exception as e:
             logger.error(f"Lỗi trong lệnh 'visa withdraw': {e}", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi rút tiền.")
+
+    @visa.command(name="upgrade")
+    async def upgrade_visa(self, ctx: commands.Context, unique_visa_id: str):
+        """Nâng cấp một Ecobank (Visa Nội địa) thành Ecovisa (Visa Quốc tế)."""
+        try:
+            economy_data = load_economy_data()
+            global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
+            
+            target_visa = next((item for item in global_profile.get("inventory_global", []) if isinstance(item, dict) and item.get("unique_id") == unique_visa_id), None)
+            
+            if not target_visa:
+                await try_send(ctx, content=f"{ICON_ERROR} Không tìm thấy thẻ Visa nào có ID `{unique_visa_id}`.")
+                return
+
+            if target_visa.get("visa_type") != "local":
+                await try_send(ctx, content=f"{ICON_ERROR} Thẻ này không phải là `Ecobank` (Visa Nội địa) nên không thể nâng cấp.")
+                return
+
+            upgrade_target_id = "ecovisa_standard"
+            upgrade_details = UTILITY_ITEMS.get(upgrade_target_id)
+            if not upgrade_details:
+                await try_send(ctx, content=f"{ICON_ERROR} Lỗi hệ thống: không tìm thấy thông tin nâng cấp `{upgrade_target_id}`.")
+                return
+            
+            upgrade_cost = UPGRADE_VISA_COST
+            if global_profile["bank_balance"] < upgrade_cost:
+                await try_send(ctx, content=f"{ICON_ERROR} Bạn không đủ tiền trong Bank để nâng cấp. Cần **{upgrade_cost:,}**, bạn có **{global_profile['bank_balance']:,}**.")
+                return
+
+            global_profile["bank_balance"] -= upgrade_cost
+            original_name = UTILITY_ITEMS.get(target_visa['item_id'], {}).get('name', 'Visa cũ')
+            
+            target_visa["item_id"] = upgrade_target_id
+            target_visa["visa_type"] = "international"
+            target_visa["capacity"] = upgrade_details["capacity"]
+            
+            save_economy_data(economy_data)
+
+            logger.info(f"User {ctx.author.id} đã nâng cấp visa {unique_visa_id} lên {upgrade_target_id}.")
+            await try_send(ctx, content=(
+                f"{ICON_SUCCESS} Nâng cấp thành công!\n"
+                f"  - Đã trừ phí: **{upgrade_cost:,}** {ICON_BANK_MAIN} từ Bank trung tâm.\n"
+                f"  - Thẻ `{unique_visa_id}` (`{original_name}`) của bạn giờ đã là **{upgrade_details['name']}**!"
+            ))
+
+        except Exception as e:
+            logger.error(f"Lỗi trong lệnh 'visa upgrade': {e}", exc_info=True)
+            await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi nâng cấp thẻ.")
 
 def setup(bot: commands.Bot):
     bot.add_cog(VisaCommandCog(bot))
