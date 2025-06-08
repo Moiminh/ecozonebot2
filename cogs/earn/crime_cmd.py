@@ -12,19 +12,22 @@ from core.database import (
     get_or_create_user_local_data
 )
 from core.utils import try_send
-from core.config import CRIME_COOLDOWN, CRIME_SUCCESS_RATE
-from core.icons import (
-    ICON_LOADING, ICON_CRIME, ICON_ERROR, ICON_MONEY_BAG,
-    ICON_TIEN_SACH, ICON_TIEN_LAU
+from core.config import (
+    CRIME_COOLDOWN, CRIME_SUCCESS_RATE,
+    CRIME_ENERGY_COST, CRIME_HUNGER_COST
 )
-from core.leveling import check_and_process_levelup  # ✅ Thêm dòng này
+from core.icons import (
+    ICON_LOADING, ICON_CRIME, ICON_ERROR, ICON_TIEN_SACH,
+    ICON_TIEN_LAU, ICON_MONEY_BAG, ICON_SURVIVAL
+)
+from core.leveling import check_and_process_levelup
 
 logger = logging.getLogger(__name__)
 
 class CrimeCommandCog(commands.Cog, name="Crime Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("CrimeCommandCog (v2) initialized.")
+        logger.info("CrimeCommandCog (v3 - with Survival) initialized.")
 
     @commands.command(name='crime')
     async def crime(self, ctx: commands.Context):
@@ -40,16 +43,29 @@ class CrimeCommandCog(commands.Cog, name="Crime Command"):
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
             local_data = get_or_create_user_local_data(global_profile, guild_id)
 
+            # --- KIỂM TRA CHỈ SỐ SINH TỒN ---
+            stats = local_data.get("survival_stats")
+            if stats["energy"] < CRIME_ENERGY_COST:
+                await try_send(ctx, content=f"{ICON_SURVIVAL} Bạn quá mệt mỏi để thực hiện phi vụ này!")
+                return
+            if stats["hunger"] < CRIME_HUNGER_COST:
+                await try_send(ctx, content=f"{ICON_SURVIVAL} Bạn quá đói để tập trung làm phi vụ!")
+                return
+
+            # --- Kiểm tra Cooldown ---
             now = datetime.now().timestamp()
             last_crime = global_profile.get("cooldowns", {}).get("crime", 0)
-
             if now - last_crime < CRIME_COOLDOWN:
                 time_left = str(datetime.fromtimestamp(last_crime + CRIME_COOLDOWN) - datetime.now()).split('.')[0]
                 await try_send(ctx, content=f"{ICON_LOADING} Cảnh sát đang theo dõi! Lệnh `crime` còn chờ: **{time_left}**.")
                 return
 
-            global_profile["cooldowns"]["crime"] = now
+            # --- Trừ chỉ số sinh tồn ---
+            stats["energy"] = max(0, stats["energy"] - CRIME_ENERGY_COST)
+            stats["hunger"] = max(0, stats["hunger"] - CRIME_HUNGER_COST)
 
+            # --- Thực hiện hành động ---
+            global_profile["cooldowns"]["crime"] = now
             crimes_list = ["trộm vặt", "buôn lậu", "hack tài khoản", "tổ chức đua xe", "lừa đảo qua mạng"]
             chosen_crime = random.choice(crimes_list)
 
@@ -62,16 +78,14 @@ class CrimeCommandCog(commands.Cog, name="Crime Command"):
                 local_data["xp_local"] += xp_earned_local
                 global_profile["xp_global"] += xp_earned_global
 
-                await check_and_process_levelup(ctx, local_data, 'local')  # ✅ Thêm
-                await check_and_process_levelup(ctx, global_profile, 'global')  # ✅ Thêm
+                await check_and_process_levelup(ctx, local_data, 'local')
+                await check_and_process_levelup(ctx, global_profile, 'global')
 
                 await try_send(
                     ctx,
                     content=(
-                        f"{ICON_CRIME} Bạn đã thực hiện thành công phi vụ **'{chosen_crime}'** và nhận được:
-"
-                        f"  {ICON_TIEN_SACH} **{earnings:,}** Tiền Sạch
-"
+                        f"{ICON_CRIME} Bạn đã thực hiện thành công phi vụ **'{chosen_crime}'** và nhận được:\n"
+                        f"  {ICON_TIEN_SACH} **{earnings:,}** Tiền Sạch\n"
                         f"  ✨ **{xp_earned_local}** XP (Server) & **{xp_earned_global}** XP (Global)"
                     )
                 )
@@ -80,31 +94,27 @@ class CrimeCommandCog(commands.Cog, name="Crime Command"):
                 adadd_balance = local_data["local_balance"]["adadd"]
                 earned_balance = local_data["local_balance"]["earned"]
                 total_local_balance = adadd_balance + earned_balance
-
                 actual_fine = min(fine, total_local_balance)
                 adadd_deducted = min(adadd_balance, actual_fine)
                 earned_deducted = actual_fine - adadd_deducted
-
                 local_data["local_balance"]["adadd"] -= adadd_deducted
                 local_data["local_balance"]["earned"] -= earned_deducted
 
                 await try_send(
                     ctx,
                     content=(
-                        f"{ICON_ERROR} Bạn đã thất bại thảm hại khi **'{chosen_crime}'** và bị phạt **{actual_fine:,}** {ICON_MONEY_BAG}.
-"
-                        f"  (Trừ từ Tiền Lậu: {adadd_deducted:,} {ICON_TIEN_LAU} | Trừ từ Tiền Sạch: {earned_deducted:,} {ICON_TIEN_SACH})"
+                        f"{ICON_ERROR} Bạn đã thất bại với phi vụ **'{chosen_crime}'** và bị phạt **{actual_fine:,}** {ICON_MONEY_BAG}.\n"
+                        f"  (Trừ từ Tiền Lậu: {adadd_deducted:,} {ICON_TIEN_LAU} | Tiền Sạch: {earned_deducted:,} {ICON_TIEN_SACH})"
                     )
                 )
 
             save_economy_data(economy_data)
-
             final_total_balance = local_data["local_balance"]["earned"] + local_data["local_balance"]["adadd"]
-            await ctx.send(f"Tổng Ví Local của bạn hiện tại: **{final_total_balance:,}** {ICON_MONEY_BAG}")
+            await try_send(ctx, content=f"Tổng Ví Local hiện tại: **{final_total_balance:,}** {ICON_MONEY_BAG}")
 
         except Exception as e:
-            logger.error(f"Lỗi trong lệnh 'crime' (v2) cho user {author_id}: {e}", exc_info=True)
-            await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi bạn đang thực hiện phi vụ.")
+            logger.error(f"Lỗi trong lệnh 'crime' cho user {author_id}: {e}", exc_info=True)
+            await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi thực hiện phi vụ.")
 
 def setup(bot: commands.Bot):
     bot.add_cog(CrimeCommandCog(bot))
