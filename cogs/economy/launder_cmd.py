@@ -17,13 +17,14 @@ from core.config import (
     WANTED_LEVEL_CATCH_MULTIPLIER
 )
 from core.icons import ICON_ERROR, ICON_SUCCESS, ICON_WARNING, ICON_BANK_MAIN, ICON_ECOBIT, ICON_ECOIN
+from core.travel_manager import handle_travel_event
 
 logger = logging.getLogger(__name__)
 
 class LaunderCommandCog(commands.Cog, name="Launder Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("LaunderCommandCog initialized.")
+        logger.info("LaunderCommandCog (v2 - with Travel) initialized.")
 
     @commands.command(name="launder")
     async def launder(self, ctx: commands.Context, amount: int):
@@ -42,8 +43,14 @@ class LaunderCommandCog(commands.Cog, name="Launder Command"):
         try:
             economy_data = load_economy_data()
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
-            local_data = get_or_create_user_local_data(global_profile, guild_id)
 
+            # --- Kiểm tra Last Active Guild ---
+            if global_profile.get("last_active_guild_id") != guild_id:
+                await handle_travel_event(ctx, self.bot)
+                logger.info(f"User {author_id} has 'traveled' to guild {guild_id}.")
+            global_profile["last_active_guild_id"] = guild_id
+
+            local_data = get_or_create_user_local_data(global_profile, guild_id)
             adadd_balance = local_data["local_balance"]["adadd"]
             if adadd_balance < amount:
                 await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ {amount:,} 🧪Ecobit để thực hiện.")
@@ -54,7 +61,7 @@ class LaunderCommandCog(commands.Cog, name="Launder Command"):
             catch_chance = min(0.9, BASE_CATCH_CHANCE + wanted_level * WANTED_LEVEL_CATCH_MULTIPLIER) # Giới hạn 90%
 
             # Đặt cooldown ngay lập tức
-            global_profile["cooldowns"]["launder"] = datetime.now().timestamp()
+            global_profile.setdefault("cooldowns", {})["launder"] = datetime.now().timestamp()
 
             if random.random() < catch_chance:
                 # BỊ BẮT
