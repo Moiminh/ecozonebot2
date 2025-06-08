@@ -9,11 +9,11 @@ from core.database import (
     get_or_create_global_user_profile,
     get_or_create_user_local_data
 )
-from core.utils import try_send
-from core.config import DEPOSIT_FEE_PERCENTAGE # Giả sử đã thêm vào config.py
+from core.utils import try_send, format_large_number
+from core.config import DEPOSIT_FEE_PERCENTAGE, LAUNDER_EXCHANGE_RATE
 from core.icons import (
-    ICON_BANK, ICON_MONEY_BAG, ICON_SUCCESS, ICON_ERROR,
-    ICON_WARNING, ICON_INFO, ICON_TIEN_SACH
+    ICON_BANK_MAIN, ICON_MONEY_BAG, ICON_SUCCESS, ICON_ERROR,
+    ICON_WARNING, ICON_INFO, ICON_ECOIN
 )
 
 logger = logging.getLogger(__name__)
@@ -21,11 +21,11 @@ logger = logging.getLogger(__name__)
 class DepositCommandCog(commands.Cog, name="Deposit Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("DepositCommandCog (v2) initialized.")
+        logger.info("DepositCommandCog (v3) initialized.")
 
     @commands.command(name='deposit', aliases=['dep'])
     async def deposit(self, ctx: commands.Context, amount_str: str):
-        """Gửi Tiền Sạch (earned) từ Ví Local vào Bank để bảo toàn tài sản."""
+        """Gửi 🪙Ecoin (Tiền Sạch) từ Ví Local vào Bank trung tâm (phí 5%)."""
         if not ctx.guild:
             await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
             return
@@ -51,13 +51,12 @@ class DepositCommandCog(commands.Cog, name="Deposit Command"):
                     await try_send(ctx, content=f"{ICON_WARNING} Vui lòng nhập một số tiền hợp lệ hoặc 'all'.")
                     return
 
-            # --- Kiểm tra điều kiện ---
             if amount_to_deposit <= 0:
                 await try_send(ctx, content=f"{ICON_ERROR} Số tiền gửi phải lớn hơn 0.")
                 return
 
             if earned_balance < amount_to_deposit:
-                await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ 'Tiền Sạch' để gửi. {ICON_TIEN_SACH} Bạn có: **{earned_balance:,}**")
+                await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ {ICON_ECOIN} để gửi. Bạn có: **{earned_balance:,}**")
                 return
 
             # --- Tính phí và kiểm tra lần cuối ---
@@ -65,59 +64,48 @@ class DepositCommandCog(commands.Cog, name="Deposit Command"):
             total_cost = amount_to_deposit + fee
 
             if earned_balance < total_cost:
-                await try_send(
-                    ctx,
-                    content=(
-                        f"{ICON_ERROR} Không đủ 'Tiền Sạch' để trả phí!\n"
-                        f"  - Muốn gửi: `{amount_to_deposit:,}`\n"
-                        f"  - Phí ({DEPOSIT_FEE_PERCENTAGE*100}%): `{fee:,}`\n"
-                        f"  - **Tổng cộng cần: `{total_cost:,}`**\n"
-                        f"  - {ICON_TIEN_SACH} Bạn chỉ có: **{earned_balance:,}**"
-                    )
-                )
+                await try_send(ctx, content=(
+                    f"{ICON_ERROR} Không đủ {ICON_ECOIN} để trả phí!\n"
+                    f"- Muốn gửi: `{amount_to_deposit:,}`\n"
+                    f"- Phí ({DEPOSIT_FEE_PERCENTAGE*100}%): `{fee:,}`\n"
+                    f"- **Tổng cộng cần: `{total_cost:,}`**\n"
+                    f"- {ICON_ECOIN} Bạn chỉ có: **{earned_balance:,}**"))
                 return
 
             # --- Thực hiện giao dịch ---
             local_data["local_balance"]["earned"] -= total_cost
             global_profile["bank_balance"] += amount_to_deposit
             
-            # Lưu lại dữ liệu
-            save_economy_data(economy_data)
-
-            logger.info(f"User {author_id} tại guild {guild_id} đã deposit {amount_to_deposit} earned vào Bank, phí {fee}.")
-
-            # --- Thực hiện giao dịch ---
-            local_data["local_balance"]["earned"] -= total_cost
-            global_profile["bank_balance"] += amount_to_deposit
-            
-            # --- CẬP NHẬT MỚI: Logic giảm tội (wanted_level) ---
-            wanted_level = global_profile.get("wanted_level", 0.0)
-            reduction_amount = (amount_to_deposit / LAUNDER_EXCHANGE_RATE) * 0.5 # Giảm 0.5 điểm cho mỗi 1 bank "sạch" được tạo ra
-            new_wanted_level = max(0.0, wanted_level - reduction_amount)
+            # --- Logic giảm tội (wanted_level) ---
+            original_wanted_level = global_profile.get("wanted_level", 0.0)
+            # Giảm 0.5 điểm truy nã cho mỗi 1 bank "sạch" được tạo ra (tương đương 100tr ecobit)
+            # Đây là một con số ví dụ, có thể điều chỉnh trong config
+            reduction_amount = (amount_to_deposit / LAUNDER_EXCHANGE_RATE) * 0.5 
+            new_wanted_level = max(0.0, original_wanted_level - reduction_amount)
             global_profile["wanted_level"] = new_wanted_level
             
-            # Lưu lại dữ liệu
             save_economy_data(economy_data)
 
-            logger.info(f"User {author_id} đã deposit {amount_to_deposit} earned. Wanted level: {wanted_level:.2f} -> {new_wanted_level:.2f}.")
+            logger.info(f"User {author_id} đã deposit {amount_to_deposit} Ecoin. Wanted level: {original_wanted_level:.2f} -> {new_wanted_level:.2f}.")
 
-            new_bank_balance = global_profile["bank_balance"]
-            new_earned_balance = local_data["local_balance"]["earned"]
-            await try_send(
-                ctx,
-                content=(
-                    f"{ICON_SUCCESS} Giao dịch thành công!\n"
-                    f"  - Đã gửi vào Bank: **{amount_to_deposit:,}** {ICON_BANK}\n"
-                    f"  - Phí giao dịch: **{fee:,}** {ICON_MONEY_BAG}\n"
-                    f"Số dư mới:\n"
-                    f"  - {ICON_TIEN_SACH} Tiền Sạch: **{new_earned_balance:,}**\n"
-                    f"  - {ICON_BANK} Bank: **{new_bank_balance:,}**"
-                )
+            # --- Gửi thông báo thành công ---
+            msg = (
+                f"{ICON_SUCCESS} Giao dịch thành công!\n"
+                f"- Đã gửi vào Bank: **{amount_to_deposit:,}** {ICON_BANK_MAIN}\n"
+                f"- Phí giao dịch: **{fee:,}** {ICON_MONEY_BAG}\n"
+                f"Số dư mới:\n"
+                f"- {ICON_ECOIN} Ecoin (trong Ví Local): **{local_data['local_balance']['earned']:,}**\n"
+                f"- {ICON_BANK_MAIN} Bank: **{global_profile['bank_balance']:,}**"
             )
+            
+            if new_wanted_level < original_wanted_level:
+                msg += f"\n\n{ICON_INFO} Hành động tốt của bạn đã giúp **giảm Điểm Nghi ngờ**!"
+
+            await try_send(ctx, content=msg)
 
         except Exception as e:
-            logger.error(f"Lỗi trong lệnh 'deposit' (v2) cho user {author_id}: {e}", exc_info=True)
-            await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi bạn gửi tiền.")
+            logger.error(f"Lỗi trong lệnh 'deposit' (v3) cho user {author_id}: {e}", exc_info=True)
+            await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn gửi tiền.")
 
 def setup(bot: commands.Bot):
     bot.add_cog(DepositCommandCog(bot))
