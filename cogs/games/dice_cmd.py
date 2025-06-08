@@ -1,4 +1,3 @@
-# bot/cogs/games/dice_cmd.py
 import nextcord
 from nextcord.ext import commands
 import random
@@ -17,6 +16,7 @@ from core.icons import (
     ICON_LOADING, ICON_ERROR, ICON_DICE, ICON_MONEY_BAG, 
     ICON_ECOIN, ICON_ECOBIT, ICON_WARNING
 )
+from core.travel_manager import handle_travel_event
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class BetConfirmationView(nextcord.ui.View):
 class DiceCommandCog(commands.Cog, name="Dice Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("DiceCommandCog (v3 - Interactive) initialized.")
+        logger.info("DiceCommandCog (v4 - with Travel) initialized.")
 
     @commands.command(name='dice', aliases=['roll'])
     async def dice(self, ctx: commands.Context, bet: int):
@@ -73,7 +73,15 @@ class DiceCommandCog(commands.Cog, name="Dice Command"):
 
         economy_data = load_economy_data()
         global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
-        local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
+
+        # --- Kiểm tra Last Active Guild ---
+        guild_id = ctx.guild.id
+        if global_profile.get("last_active_guild_id") != guild_id:
+            await handle_travel_event(ctx, self.bot)
+            logger.info(f"User {ctx.author.id} has 'traveled' to guild {guild_id}.")
+        global_profile["last_active_guild_id"] = guild_id
+
+        local_data = get_or_create_user_local_data(global_profile, guild_id)
 
         now = datetime.now().timestamp()
         last_dice = global_profile.get("cooldowns", {}).get("dice", 0)
@@ -106,7 +114,15 @@ class DiceCommandCog(commands.Cog, name="Dice Command"):
 
         economy_data = load_economy_data()
         global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
-        local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
+
+        # --- Kiểm tra Last Active Guild ---
+        guild_id = ctx.guild.id
+        if global_profile.get("last_active_guild_id") != guild_id:
+            await handle_travel_event(ctx, self.bot)
+            logger.info(f"User {ctx.author.id} has 'traveled' to guild {guild_id}.")
+        global_profile["last_active_guild_id"] = guild_id
+
+        local_data = get_or_create_user_local_data(global_profile, guild_id)
 
         local_data["local_balance"][payment_type] -= bet
         
@@ -147,4 +163,17 @@ class DiceCommandCog(commands.Cog, name="Dice Command"):
         await view.message.edit(content=f"{header_msg}{final_msg}\nVí Local của bạn giờ là: **{new_total_balance:,}** {ICON_MONEY_BAG}", view=None)
 
 def setup(bot: commands.Bot):
-    bot.add_cog(DiceCommandCog(bot))
+    bot.add_cog(DiceCommandCog(bot))# bot/cogs/games/dice_cmd.py
+import nextcord
+from nextcord.ext import commands
+import random
+import logging
+from datetime import datetime
+
+from core.database import (
+    load_economy_data,
+    save_economy_data,
+    get_or_create_global_user_profile,
+    get_or_create_user_local_data
+)
+from core.utils import try_send
