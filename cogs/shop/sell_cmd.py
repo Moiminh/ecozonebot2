@@ -29,13 +29,43 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
 
     @commands.command(name='sell')
     async def sell(self, ctx: commands.Context, item_id: str, quantity: int = 1):
+# bot/cogs/shop/sell_cmd.py
+import nextcord
+from nextcord.ext import commands
+import logging
+from datetime import date
+
+from core.database import (
+    load_economy_data,
+    save_economy_data,
+    get_or_create_global_user_profile,
+    get_or_create_user_local_data
+)
+from core.utils import try_send
+from core.config import (
+    SHOP_ITEMS, TAINTED_ITEM_SELL_LIMIT, TAINTED_ITEM_SELL_RATE,
+    TAINTED_ITEM_TAX_RATE, FOREIGN_ITEM_SELL_PENALTY
+)
+from core.icons import (
+    ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO,
+    ICON_ECOIN
+)
+
+logger = logging.getLogger(__name__)
+
+class SellCommandCog(commands.Cog, name="Sell Command"):
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+        logger.info("SellCommandCog (v3 - Full) initialized.")
+
+    @commands.command(name='sell')
+    async def sell(self, ctx: commands.commanads.Context, item_id: str, quantity: int = 1):
         """Bán một vật phẩm từ túi đồ của bạn. Giá trị thu về phụ thuộc vào nguồn gốc vật phẩm."""
         if not ctx.guild:
             await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
             return
 
         author_id = ctx.author.id
-        guild_id = ctx.guild.id
         item_id_to_sell = item_id.lower().strip()
 
         if quantity <= 0:
@@ -49,13 +79,12 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
         try:
             economy_data = load_economy_data()
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
-            local_data = get_or_create_user_local_data(global_profile, guild_id)
+            local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
 
             inv_local = local_data.get("inventory_local", [])
             inv_global = global_profile.get("inventory_global", [])
             full_inventory = inv_local + inv_global
             
-            # Lọc ra các vật phẩm có thể bán
             sellable_items = [item for item in full_inventory if isinstance(item, dict) and item.get("item_id") == item_id_to_sell]
 
             if len(sellable_items) < quantity:
@@ -66,12 +95,10 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
             items_sold_count = 0
             warnings = []
 
-            # Xử lý bán từng vật phẩm
-            for item_to_sell in sellable_items:
-                if items_sold_count >= quantity:
-                    break
-
-                # --- Áp dụng quy tắc bán hàng ---
+            # Xử lý bán từng vật phẩm một
+            for i in range(quantity):
+                item_to_sell = sellable_items[i]
+                
                 is_tainted = item_to_sell.get("is_tainted", False)
                 is_foreign = item_to_sell.get("is_foreign", False)
                 base_details = SHOP_ITEMS[item_id_to_sell]
@@ -86,8 +113,9 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
                         cooldowns["last_tainted_sell_date"] = today_str
 
                     if cooldowns.get("tainted_sells_today", 0) >= TAINTED_ITEM_SELL_LIMIT:
-                        warnings.append(f"{ICON_WARNING} Bạn đã đạt giới hạn bán 'vật phẩm bẩn' hôm nay, một số vật phẩm không được bán.")
-                        break # Dừng bán khi đạt giới hạn
+                        if not warnings:
+                            warnings.append(f"{ICON_WARNING} Bạn đã đạt giới hạn bán 'vật phẩm bẩn' hôm nay, một số vật phẩm không được bán.")
+                        continue
 
                     proceeds = base_details.get("price", 0) * TAINTED_ITEM_SELL_RATE
                     tax = proceeds * TAINTED_ITEM_TAX_RATE
@@ -100,12 +128,11 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
                     sell_price = base_details.get("sell_price", 0)
                     final_proceeds = round(sell_price * (1 - FOREIGN_ITEM_SELL_PENALTY))
                 
-                else: # Đồ sạch, không ngoại lai
+                else: # Đồ sạch
                     final_proceeds = base_details.get("sell_price", 0)
 
                 total_earnings += final_proceeds
                 
-                # Xóa vật phẩm khỏi túi đồ
                 if item_to_sell in inv_local:
                     inv_local.remove(item_to_sell)
                 elif item_to_sell in inv_global:
@@ -113,7 +140,6 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
                 
                 items_sold_count += 1
 
-            # Cộng toàn bộ tiền bán được vào 'earned'
             local_data["local_balance"]["earned"] += total_earnings
             
             save_economy_data(economy_data)
@@ -123,6 +149,16 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
             msg = f"{ICON_SUCCESS} Bạn đã bán thành công **{items_sold_count}x {item_id_to_sell}** và nhận được tổng cộng **{total_earnings:,}** {ICON_ECOIN}."
             if warnings:
                 msg += "\n" + "\n".join(warnings)
+                
+            await try_send(ctx, content=msg)
+
+        except Exception as e:
+            logger.error(f"Lỗi trong lệnh 'sell' (v3) cho user {author_id}: {e}", exc_info=True)
+            await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn bán hàng.")
+
+def setup(bot: commands.Bot):
+    bot.add_cog(SellCommandCog(bot))
+)
                 
             await try_send(ctx, content=msg)
 
