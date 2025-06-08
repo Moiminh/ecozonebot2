@@ -11,14 +11,13 @@ from core.database import (
     get_or_create_user_local_data
 )
 from core.utils import try_send
-from core.config import SHOP_ITEMS, TAINTED_ITEM_SELL_LIMIT
-# Giả sử đã thêm các config mới vào config.py
-# TAINTED_ITEM_SELL_LIMIT = 2
-# TAINTED_ITEM_SELL_RATE = 0.2 # 20%
-# TAINTED_ITEM_TAX_RATE = 0.4 # 40%
+from core.config import (
+    SHOP_ITEMS, TAINTED_ITEM_SELL_LIMIT, TAINTED_ITEM_SELL_RATE,
+    TAINTED_ITEM_TAX_RATE, FOREIGN_ITEM_SELL_PENALTY
+)
 from core.icons import (
     ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO,
-    ICON_TIEN_SACH, ICON_TIEN_LAU
+    ICON_ECOIN, ICON_ECOBIT
 )
 
 logger = logging.getLogger(__name__)
@@ -26,18 +25,18 @@ logger = logging.getLogger(__name__)
 class SellCommandCog(commands.Cog, name="Sell Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("SellCommandCog (v2) initialized.")
+        logger.info("SellCommandCog (v3 - Full) initialized.")
 
     @commands.command(name='sell')
     async def sell(self, ctx: commands.Context, item_id: str, quantity: int = 1):
-        """Bán một vật phẩm từ túi đồ của bạn."""
+        """Bán một vật phẩm từ túi đồ của bạn. Giá trị thu về phụ thuộc vào nguồn gốc vật phẩm."""
         if not ctx.guild:
             await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
             return
 
         author_id = ctx.author.id
         guild_id = ctx.guild.id
-        item_id_to_sell = item_id.lower().strip().replace(" ", "_")
+        item_id_to_sell = item_id.lower().strip()
 
         if quantity <= 0:
             await try_send(ctx, content=f"{ICON_ERROR} Số lượng bán phải lớn hơn 0.")
@@ -54,44 +53,31 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
 
             inv_local = local_data.get("inventory_local", [])
             inv_global = global_profile.get("inventory_global", [])
+            full_inventory = inv_local + inv_global
             
-            # Đếm tổng số vật phẩm có thể bán
-            total_item_count = sum(1 for item in inv_local + inv_global if isinstance(item, dict) and item.get("item_id") == item_id_to_sell)
+            # Lọc ra các vật phẩm có thể bán
+            sellable_items = [item for item in full_inventory if isinstance(item, dict) and item.get("item_id") == item_id_to_sell]
 
-            if total_item_count < quantity:
-                await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ **{quantity}x {item_id_to_sell}**. Bạn chỉ có tổng cộng {total_item_count} cái.")
+            if len(sellable_items) < quantity:
+                await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ **{quantity}x {item_id_to_sell}**. Bạn chỉ có tổng cộng {len(sellable_items)} cái.")
                 return
 
             total_earnings = 0
-            items_sold_info = {"clean": 0, "tainted": 0}
+            items_sold_count = 0
             warnings = []
 
             # Xử lý bán từng vật phẩm
-            for _ in range(quantity):
-                item_to_remove = None
-                inventory_source = None
-                
-                # Ưu tiên tìm trong túi local trước
-                for item in inv_local:
-                    if isinstance(item, dict) and item.get("item_id") == item_id_to_sell:
-                        item_to_remove = item
-                        inventory_source = inv_local
-                        break
-                
-                # Nếu không có, tìm trong túi global
-                if not item_to_remove:
-                    for item in inv_global:
-                        if isinstance(item, dict) and item.get("item_id") == item_id_to_sell:
-                            item_to_remove = item
-                            inventory_source = inv_global
-                            break
-                
+            for item_to_sell in sellable_items:
+                if items_sold_count >= quantity:
+                    break
+
                 # --- Áp dụng quy tắc bán hàng ---
-                is_tainted = item_to_remove.get("is_tainted", False)
+                is_tainted = item_to_sell.get("is_tainted", False)
+                is_foreign = item_to_sell.get("is_foreign", False)
                 base_details = SHOP_ITEMS[item_id_to_sell]
-                
+                final_proceeds = 0
+
                 if is_tainted:
-                    # ---- XỬ LÝ ĐỒ BẨN ----
                     cooldowns = global_profile.get("cooldowns", {})
                     today_str = str(date.today())
                     
@@ -100,51 +86,49 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
                         cooldowns["last_tainted_sell_date"] = today_str
 
                     if cooldowns.get("tainted_sells_today", 0) >= TAINTED_ITEM_SELL_LIMIT:
-                        warnings.append(f"{ICON_WARNING} Bạn đã đạt giới hạn bán 'vật phẩm bẩn' hôm nay.")
-                        continue # Bỏ qua việc bán vật phẩm này
+                        warnings.append(f"{ICON_WARNING} Bạn đã đạt giới hạn bán 'vật phẩm bẩn' hôm nay, một số vật phẩm không được bán.")
+                        break # Dừng bán khi đạt giới hạn
 
-                    # Tính giá trị thu hồi thấp
-                    proceeds = base_details.get("price", 0) * 0.2 # Giả sử 20%
-                    # Áp thuế cao
-                    tax = proceeds * 0.4 # Giả sử thuế 40%
+                    proceeds = base_details.get("price", 0) * TAINTED_ITEM_SELL_RATE
+                    tax = proceeds * TAINTED_ITEM_TAX_RATE
                     final_proceeds = round(proceeds - tax)
 
-                    # Tăng điểm nghi ngờ
-                    global_profile["wanted_level"] = global_profile.get("wanted_level", 0) + 0.25
+                    global_profile["wanted_level"] = global_profile.get("wanted_level", 0.0) + 0.25
                     cooldowns["tainted_sells_today"] += 1
-                    items_sold_info["tainted"] += 1
-                else:
-                    # ---- XỬ LÝ ĐỒ SẠCH ----
+                
+                elif is_foreign:
+                    sell_price = base_details.get("sell_price", 0)
+                    final_proceeds = round(sell_price * (1 - FOREIGN_ITEM_SELL_PENALTY))
+                
+                else: # Đồ sạch, không ngoại lai
                     final_proceeds = base_details.get("sell_price", 0)
-                    items_sold_info["clean"] += 1
 
                 total_earnings += final_proceeds
-                inventory_source.remove(item_to_remove)
+                
+                # Xóa vật phẩm khỏi túi đồ
+                if item_to_sell in inv_local:
+                    inv_local.remove(item_to_sell)
+                elif item_to_sell in inv_global:
+                    inv_global.remove(item_to_sell)
+                
+                items_sold_count += 1
 
             # Cộng toàn bộ tiền bán được vào 'earned'
             local_data["local_balance"]["earned"] += total_earnings
             
             save_economy_data(economy_data)
 
-            logger.info(f"User {author_id} đã bán {quantity}x {item_id_to_sell}, thu về {total_earnings} earned.")
+            logger.info(f"User {author_id} đã bán {items_sold_count}x {item_id_to_sell}, thu về {total_earnings} Ecoin.")
 
-            # --- Gửi thông báo ---
-            msg_parts = [f"{ICON_SUCCESS} Giao dịch hoàn tất!"]
-            if items_sold_info["clean"] > 0:
-                msg_parts.append(f"- Đã bán **{items_sold_info['clean']}x vật phẩm sạch**.")
-            if items_sold_info["tainted"] > 0:
-                msg_parts.append(f"- Đã bán **{items_sold_info['tainted']}x vật phẩm bẩn** (đã trừ giá trị và thuế).")
-            
-            msg_parts.append(f"Bạn nhận được tổng cộng **{total_earnings:,}** {ICON_TIEN_SACH}.")
-            
+            msg = f"{ICON_SUCCESS} Bạn đã bán thành công **{items_sold_count}x {item_id_to_sell}** và nhận được tổng cộng **{total_earnings:,}** {ICON_ECOIN}."
             if warnings:
-                msg_parts.extend(warnings)
+                msg += "\n" + "\n".join(warnings)
                 
-            await try_send(ctx, content="\n".join(msg_parts))
+            await try_send(ctx, content=msg)
 
         except Exception as e:
-            logger.error(f"Lỗi trong lệnh 'sell' (v2) cho user {author_id}: {e}", exc_info=True)
-            await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi bạn bán hàng.")
+            logger.error(f"Lỗi trong lệnh 'sell' (v3) cho user {author_id}: {e}", exc_info=True)
+            await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn bán hàng.")
 
 def setup(bot: commands.Bot):
     bot.add_cog(SellCommandCog(bot))
