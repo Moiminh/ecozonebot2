@@ -71,9 +71,19 @@ UTILITY_ITEMS = {
         "type": "backpack", "capacity": 1
     }
 }
+# --- Survival Stats Costs (NEW) ---
+WORK_ENERGY_COST = 10
+WORK_HUNGER_COST = 5
 
-# --- Bare Command Mapping ---
-# Ánh xạ các lệnh không cần prefix (lệnh tắt) tới tên lệnh gốc
+CRIME_ENERGY_COST = 8
+CRIME_HUNGER_COST = 4
+
+ROB_ENERGY_COST = 12
+ROB_HUNGER_COST = 6
+
+FISH_ENERGY_COST = 5
+FISH_HUNGER_COST = 3
+
 BARE_COMMAND_MAP = {
     # Tài Khoản & Tổng Quan
     "balance": "balance", "bal": "balance",
