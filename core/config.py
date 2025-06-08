@@ -13,7 +13,7 @@ ICON_BANK_MAIN = "🏦" # Bank trung tâm
 ICON_ECOBANK = "🏦"     # Visa Nội địa
 ICON_ECOVISA = "💳"     # Visa Quốc tế
 ICON_TICKET = "🎟️"
-
+ICON_SURVIVAL = "❤️‍🩹"
 # --- Economy & Game Balance ---
 DEPOSIT_FEE_PERCENTAGE = 0.05  # 5% phí khi gửi Ecoin vào Bank trung tâm
 UPGRADE_VISA_COST = 20000      # Phí nâng cấp từ Ecobank lên Ecovisa, trả bằng tiền Bank
@@ -34,7 +34,7 @@ TAINTED_ITEM_SELL_LIMIT = 2     # Chỉ được bán 2 vật phẩm bẩn mỗi
 TAINTED_ITEM_SELL_RATE = 0.2    # Đồ bẩn bán lại chỉ được 20% giá trị gốc
 TAINTED_ITEM_TAX_RATE = 0.4     # Chịu thêm 40% thuế trên giá đã giảm
 LAUNDER_EXCHANGE_RATE = 100_000_000 # 100 triệu Ecobit = 1 Bank
-
+FOREIGN_ITEM_SELL_PENALTY = 0.5 # Vật phẩm ngoại lai bán lại bị giảm 50% 
 # --- Game Specifics ---
 CRIME_SUCCESS_RATE = 0.60
 ROB_SUCCESS_RATE = 0.50
@@ -96,6 +96,7 @@ ROB_HUNGER_COST = 6
 
 FISH_ENERGY_COST = 5
 FISH_HUNGER_COST = 3
+
 
 BARE_COMMAND_MAP = {
     # Tài Khoản & Tổng Quan
