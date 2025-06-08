@@ -8,53 +8,65 @@ logger = logging.getLogger(__name__)
 
 # --- CÁC CẤU TRÚC DỮ LIỆU MẶC ĐỊNH ---
 
-DEFAULT_USER_LOCAL_DATA = { 
-     "local_balance": {"earned": 0, "adadd": 0},
+DEFAULT_USER_LOCAL_DATA = {
+    "local_balance": {"earned": 0, "adadd": 0},
     "inventory_local": [],
     "tickets": [],
     "level_local": 1,
     "xp_local": 0,
-    "survival_stats": {           
-        "health": 100,            # Máu
-        "hunger": 100,            # Độ no
-        "energy": 100             # Năng lượng
+    "survival_stats": {
+        "health": 100,
+        "hunger": 100,
+        "energy": 100
+    },
+    "is_mafia": False,
+    "is_police": False,
+    "is_doctor": False,
+    "role_stats": {
+        "arrests_made": 0,
+        "patients_healed": 0
+    },
+    "daily_accusations": { "date": "1970-01-01", "count": 0 }
 }
 
 DEFAULT_GLOBAL_USER_PROFILE = {
-    "bank_balance": 0, # <<< GIỮ LẠI BANK TRUNG TÂM
+    "bank_balance": 0,
     "inventory_global": [],
     "wanted_level": 0.0,
     "level_global": 1,
     "xp_global": 0,
-    "last_active_guild_id": None, # <<< THÊM TRƯỜNG MỚI
+    "last_active_guild_id": None,
     "preferred_language": "vi",
     "cooldowns": {
         "work": 0, "daily": 0, "beg": 0, "rob": 0, "crime": 0, "fish": 0,
         "slots": 0, "coinflip": 0, "dice": 0, "launder": 0,
-        "last_tainted_sell_date": "1970-01-01", # Thêm các trường cho việc bán đồ bẩn
+        "last_tainted_sell_date": "1970-01-01",
         "tainted_sells_today": 0
-    }
-}
     },
     "server_data": {}
 }
 
 DEFAULT_GUILD_CONFIG = {
     "server_level": 1,
+    "server_xp": 0,
+    "admin_vault": {
+        "balance": 1000000000, # Khởi đầu với 1 tỷ
+        "capacity": 1000000000,
+        "last_refill_date": "1970-01-01"
+    },
+    "faction_info": {
+        "mafia_betrayal_count": 0,
+        "police_betrayal_count": 0,
+        "mafia_traitors_log": [],
+        "police_traitors_log": []
+    },
+    "mafia_role_id": None,
+    "police_role_id": None,
+    "doctor_role_id": None,
     "bare_command_active_channels": [],
     "muted_channels": [],
     "active_events": {}
 }
-
-DEFAULT_ECONOMY_STRUCTURE = {
-    "users": {},
-    "guild_configs": {},
-    "bot_metadata": {
-        "data_structure_version": "EconZone_v3.0_Final_Architecture",
-        "notes": "Hệ thống Bank trung tâm, Ví Local (Ecoin/Ecobit), và hệ thống Visa."
-    }
-}
-
 # --- CÁC HÀM QUẢN LÝ DỮ LIỆU ---
 
 def _save_data(data: Dict[str, Any], file_path: str):
