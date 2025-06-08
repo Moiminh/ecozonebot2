@@ -291,7 +291,6 @@ def get_or_create_guild_config(data: Dict[str, Any], guild_id: int) -> Dict[str,
         
     return guild_cfg
 
-# Các hàm quản lý moderator giữ nguyên vì chúng hoạt động trên file riêng
 def load_moderator_ids(file_path: str = 'moderators.json') -> List[int]:
     """Tải danh sách ID của moderator."""
     try:
@@ -331,7 +330,6 @@ def save_moderator_ids(ids: List[int], file_path: str = 'moderators.json'):
     "muted_channels": [],
     "active_events": {}
 }
-# --- CÁC HÀM QUẢN LÝ DỮ LIỆU ---
 
 def _save_data(data: Dict[str, Any], file_path: str):
     """Hàm nội bộ để lưu dữ liệu một cách an toàn."""
@@ -394,7 +392,6 @@ def save_economy_data(data: Dict[str, Any], file_path: str = 'economy.json'):
     """Lưu dữ liệu kinh tế vào file JSON một cách an toàn."""
     _save_data(data, file_path)
 
-# --- CÁC HÀM TRUY XUẤT VÀ CHUẨN HÓA DỮ LIỆU ---
 
 def get_or_create_global_user_profile(data: Dict[str, Any], user_id: int) -> Dict[str, Any]:
     """
@@ -419,7 +416,6 @@ ue.copy() if isinstance(default_value, (dict, list)) else default_value
         
     return guild_cfg
 
-# Các hàm quản lý moderator giữ nguyên vì chúng hoạt động trên file riêng
 def load_moderator_ids(file_path: str = 'moderators.json') -> List[int]:
     """Tải danh sách ID của moderator."""
     try:
@@ -441,3 +437,20 @@ def save_moderator_ids(ids: List[int], file_path: str = 'moderators.json'):
             json.dump({"moderator_ids": ids}, f, indent=4)
     except Exception:
         logger.error(f"Lỗi khi lưu moderator_ids vào {file_path}", exc_info=True)
+
+def load_item_definitions(file_path: str = 'items.json') -> Dict[str, Any]:
+    """Tải định nghĩa của tất cả vật phẩm từ file JSON."""
+    try:
+        if not os.path.exists(file_path):
+            logger.error(f"File định nghĩa vật phẩm '{file_path}' không tồn tại. Cửa hàng và các vật phẩm sẽ không hoạt động.")
+            return {}
+        with open(file_path, 'r', encoding='utf-8') as f:
+            item_data = json.load(f)
+            # Hợp nhất shop_items và utility_items vào một dictionary để dễ truy cập
+            all_items = {}
+            all_items.update(item_data.get("shop_items", {}))
+            all_items.update(item_data.get("utility_items", {}))
+            return all_items
+    except Exception as e:
+        logger.error(f"Lỗi nghiêm trọng khi tải file định nghĩa vật phẩm '{file_path}': {e}", exc_info=True)
+        return {}
