@@ -3,12 +3,7 @@ import nextcord
 from nextcord.ext import commands
 import logging
 
-from core.database import (
-    load_economy_data,
-    save_economy_data,
-    get_or_create_global_user_profile,
-    get_or_create_user_local_data
-)
+from core.database import get_or_create_global_user_profile, get_or_create_user_local_data
 from core.utils import try_send, is_guild_owner_check
 from core.config import COMMAND_PREFIX
 from core.icons import ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_TIEN_LAU
@@ -18,16 +13,13 @@ logger = logging.getLogger(__name__)
 class AddMoneyCommandCog(commands.Cog, name="ServerAdmin AddMoney"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("AddMoneyCommandCog (v2) initialized.")
+        logger.info("AddMoneyCommandCog (v3 - Refactored) initialized.")
 
     @commands.command(name='addmoney', aliases=['am', 'ecoadd'])
     @commands.check(is_guild_owner_check)
+    @commands.guild_only()
     async def add_money(self, ctx: commands.Context, member: nextcord.Member, amount: int):
         """(Chủ Server) Cộng 'Tiền Lậu' (adadd) vào Ví Local của một thành viên."""
-        if not ctx.guild:
-            await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
-            return
-
         if amount <= 0:
             await try_send(ctx, content=f"{ICON_ERROR} Số tiền cộng thêm phải là số dương.")
             return
@@ -36,22 +28,23 @@ class AddMoneyCommandCog(commands.Cog, name="ServerAdmin AddMoney"):
         guild_id = ctx.guild.id
         
         try:
-            economy_data = load_economy_data()
+            # Use the bot's data cache
+            economy_data = self.bot.economy_data
             global_profile = get_or_create_global_user_profile(economy_data, target_user_id)
             local_data = get_or_create_user_local_data(global_profile, guild_id)
             
-            # Chỉ cộng vào adadd (Tiền Lậu)
+            # Add to adadd (dirty money) balance
             local_data["local_balance"]["adadd"] += amount
 
-            save_economy_data(economy_data)
+            # No need to save, autosave task handles it
 
-            logger.info(f"SERVER ADMIN ACTION: {ctx.author.id} tại guild {guild_id} đã cộng {amount} adadd cho user {target_user_id}.")
+            logger.info(f"SERVER ADMIN ACTION: {ctx.author.id} at guild {guild_id} added {amount} adadd to user {target_user_id}.")
             
             new_adadd_balance = local_data["local_balance"]["adadd"]
             await try_send(ctx, content=f"{ICON_SUCCESS} Đã cộng **{amount:,}** {ICON_TIEN_LAU} (Tiền Lậu) vào Ví Local của {member.mention}.\nSố dư Tiền Lậu mới của họ: **{new_adadd_balance:,}**")
 
         except Exception as e:
-            logger.error(f"Lỗi trong lệnh 'addmoney' (v2) bởi {ctx.author.name}:", exc_info=True)
+            logger.error(f"Error in 'addmoney' (v3) by {ctx.author.name}:", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi thực hiện lệnh cộng tiền.")
 
     @add_money.error 
@@ -63,7 +56,7 @@ class AddMoneyCommandCog(commands.Cog, name="ServerAdmin AddMoney"):
         elif isinstance(error, commands.BadArgument): 
             await try_send(ctx, content=f"{ICON_ERROR} Đối số không hợp lệ. Hãy tag một người dùng và nhập một số tiền là số nguyên.")
         else:
-            logger.error(f"Lỗi không xác định trong lệnh '{ctx.command.name}' bởi {ctx.author.name}:", exc_info=True)
+            logger.error(f"Unknown error in '{ctx.command.name}' by {ctx.author.name}:", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi thực hiện lệnh cộng tiền.")
 
 def setup(bot: commands.Bot):
