@@ -4,8 +4,6 @@ from nextcord.ext import commands
 import logging
 
 from core.database import (
-    load_economy_data,
-    save_economy_data,
     get_or_create_global_user_profile,
     get_or_create_user_local_data
 )
@@ -18,7 +16,7 @@ logger = logging.getLogger(__name__)
 class RemoveMoneyCommandCog(commands.Cog, name="ServerAdmin RemoveMoney"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("RemoveMoneyCommandCog (v2) initialized.")
+        logger.info("RemoveMoneyCommandCog (v3 - Refactored) initialized.")
 
     @commands.command(name='removemoney', aliases=['rm', 'ecotake', 'submoney'])
     @commands.check(is_guild_owner_check)
@@ -36,7 +34,8 @@ class RemoveMoneyCommandCog(commands.Cog, name="ServerAdmin RemoveMoney"):
         guild_id = ctx.guild.id
         
         try:
-            economy_data = load_economy_data()
+            # [SỬA] Sử dụng cache từ bot
+            economy_data = self.bot.economy_data
             global_profile = get_or_create_global_user_profile(economy_data, target_user_id)
             local_data = get_or_create_user_local_data(global_profile, guild_id)
             
@@ -50,14 +49,14 @@ class RemoveMoneyCommandCog(commands.Cog, name="ServerAdmin RemoveMoney"):
 
             amount_to_remove = min(amount, total_local_balance)
             
-            # Logic trừ tiền thông minh: trừ adadd trước, sau đó tới earned
             adadd_deducted = min(adadd_balance, amount_to_remove)
             earned_deducted = amount_to_remove - adadd_deducted
             
             local_data["local_balance"]["adadd"] -= adadd_deducted
             local_data["local_balance"]["earned"] -= earned_deducted
             
-            save_economy_data(economy_data)
+            # [XÓA] Không cần save thủ công
+            # save_economy_data(economy_data)
 
             logger.info(f"SERVER ADMIN ACTION: {ctx.author.id} tại guild {guild_id} đã trừ {amount_to_remove} từ Ví Local của user {target_user_id}.")
             
@@ -73,7 +72,7 @@ class RemoveMoneyCommandCog(commands.Cog, name="ServerAdmin RemoveMoney"):
             )
 
         except Exception as e:
-            logger.error(f"Lỗi trong lệnh 'removemoney' (v2) bởi {ctx.author.name}:", exc_info=True)
+            logger.error(f"Lỗi trong lệnh 'removemoney' (v3) bởi {ctx.author.name}:", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi thực hiện lệnh trừ tiền.")
         
     @remove_money.error 
