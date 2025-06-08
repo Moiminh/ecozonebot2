@@ -9,7 +9,7 @@ from core.database import (
     get_or_create_global_user_profile,
     get_or_create_user_local_data
 )
-from core.utils import try_send, format_large_number
+from core.utils import try_send
 from core.config import DEPOSIT_FEE_PERCENTAGE, LAUNDER_EXCHANGE_RATE
 from core.icons import (
     ICON_BANK_MAIN, ICON_MONEY_BAG, ICON_SUCCESS, ICON_ERROR,
@@ -78,8 +78,6 @@ class DepositCommandCog(commands.Cog, name="Deposit Command"):
             
             # --- Logic giảm tội (wanted_level) ---
             original_wanted_level = global_profile.get("wanted_level", 0.0)
-            # Giảm 0.5 điểm truy nã cho mỗi 1 bank "sạch" được tạo ra (tương đương 100tr ecobit)
-            # Đây là một con số ví dụ, có thể điều chỉnh trong config
             reduction_amount = (amount_to_deposit / LAUNDER_EXCHANGE_RATE) * 0.5 
             new_wanted_level = max(0.0, original_wanted_level - reduction_amount)
             global_profile["wanted_level"] = new_wanted_level
