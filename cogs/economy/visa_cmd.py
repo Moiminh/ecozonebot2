@@ -180,5 +180,57 @@ class VisaCommandCog(commands.Cog, name="Visa Commands"):
             
             logger.info(f"User {ctx.author.id} đã withdraw {amount} từ visa {unique_visa_id}.")
             await try_send(ctx, content=f"{ICON_SUCCESS} Đã rút thành công **{amount:,}** từ thẻ `{unique_visa_id}` về Bank trung tâm.\nSố dư Bank mới của bạn: **{global_profile['bank_balance']:,}** {ICON_BANK_MAIN}"
+ # --- LỆNH CON MỚI ---
+    @visa.command(name="upgrade")
+    async def upgrade_visa(self, ctx: commands.Context, unique_visa_id: str):
+        """Nâng cấp một Ecobank (Visa Nội địa) thành Ecovisa (Visa Quốc tế)."""
+        try:
+            economy_data = load_economy_data()
+            global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
+            
+            target_visa = next((item for item in global_profile.get("inventory_global", []) if isinstance(item, dict) and item.get("unique_id") == unique_visa_id), None)
+            
+            if not target_visa:
+                await try_send(ctx, content=f"{ICON_ERROR} Không tìm thấy thẻ Visa nào có ID `{unique_visa_id}`.")
+                return
+
+            if target_visa.get("visa_type") != "local":
+                await try_send(ctx, content=f"{ICON_ERROR} Thẻ này không phải là `Ecobank` (Visa Nội địa) nên không thể nâng cấp.")
+                return
+
+            # Giả định nâng cấp lên loại "ecovisa_standard"
+            upgrade_target_id = "ecovisa_standard"
+            upgrade_details = UTILITY_ITEMS.get(upgrade_target_id)
+            if not upgrade_details:
+                await try_send(ctx, content=f"{ICON_ERROR} Lỗi hệ thống: không tìm thấy thông tin nâng cấp `{upgrade_target_id}`.")
+                return
+            
+            upgrade_cost = UPGRADE_VISA_COST
+            if global_profile["bank_balance"] < upgrade_cost:
+                await try_send(ctx, content=f"{ICON_ERROR} Bạn không đủ tiền trong Bank để nâng cấp. Cần **{upgrade_cost:,}**, bạn có **{global_profile['bank_balance']:,}**.")
+                return
+
+            # Thực hiện nâng cấp
+            global_profile["bank_balance"] -= upgrade_cost
+            original_name = UTILITY_ITEMS.get(target_visa['item_id'], {}).get('name', 'Visa cũ')
+            
+            # Thay đổi thuộc tính của thẻ
+            target_visa["item_id"] = upgrade_target_id
+            target_visa["visa_type"] = "international"
+            target_visa["capacity"] = upgrade_details["capacity"]
+            
+            save_economy_data(economy_data)
+
+            logger.info(f"User {ctx.author.id} đã nâng cấp visa {unique_visa_id} lên {upgrade_target_id}.")
+            await try_send(ctx, content=(
+                f"{ICON_SUCCESS} Nâng cấp thành công!\n"
+                f"  - Đã trừ phí: **{upgrade_cost:,}** {ICON_BANK_MAIN} từ Bank trung tâm.\n"
+                f"  - Thẻ `{unique_visa_id}` (`{original_name}`) của bạn giờ đã là **{upgrade_details['name']}**!"
+            ))
+
+        except Exception as e:
+            logger.error(f"Lỗi trong lệnh 'visa upgrade': {e}", exc_info=True)
+            await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi nâng cấp thẻ.")
+
 def setup(bot: commands.Bot):
     bot.add_cog(VisaCommandCog(bot))
