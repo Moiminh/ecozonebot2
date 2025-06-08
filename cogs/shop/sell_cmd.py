@@ -17,37 +17,6 @@ from core.config import (
 )
 from core.icons import (
     ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO,
-    ICON_ECOIN, ICON_ECOBIT
-)
-
-logger = logging.getLogger(__name__)
-
-class SellCommandCog(commands.Cog, name="Sell Command"):
-    def __init__(self, bot: commands.Bot):
-        self.bot = bot
-        logger.info("SellCommandCog (v3 - Full) initialized.")
-
-    @commands.command(name='sell')
-    async def sell(self, ctx: commands.Context, item_id: str, quantity: int = 1):
-# bot/cogs/shop/sell_cmd.py
-import nextcord
-from nextcord.ext import commands
-import logging
-from datetime import date
-
-from core.database import (
-    load_economy_data,
-    save_economy_data,
-    get_or_create_global_user_profile,
-    get_or_create_user_local_data
-)
-from core.utils import try_send
-from core.config import (
-    SHOP_ITEMS, TAINTED_ITEM_SELL_LIMIT, TAINTED_ITEM_SELL_RATE,
-    TAINTED_ITEM_TAX_RATE, FOREIGN_ITEM_SELL_PENALTY
-)
-from core.icons import (
-    ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO,
     ICON_ECOIN
 )
 
@@ -59,7 +28,8 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
         logger.info("SellCommandCog (v3 - Full) initialized.")
 
     @commands.command(name='sell')
-    async def sell(self, ctx: commands.commanads.Context, item_id: str, quantity: int = 1):
+    # [SỬA LỖI] Sửa lỗi cú pháp 'commanads' thành 'commands'
+    async def sell(self, ctx: commands.Context, item_id: str, quantity: int = 1):
         """Bán một vật phẩm từ túi đồ của bạn. Giá trị thu về phụ thuộc vào nguồn gốc vật phẩm."""
         if not ctx.guild:
             await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
@@ -158,13 +128,5 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
 
 def setup(bot: commands.Bot):
     bot.add_cog(SellCommandCog(bot))
-)
-                
-            await try_send(ctx, content=msg)
 
-        except Exception as e:
-            logger.error(f"Lỗi trong lệnh 'sell' (v3) cho user {author_id}: {e}", exc_info=True)
-            await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn bán hàng.")
-
-def setup(bot: commands.Bot):
-    bot.add_cog(SellCommandCog(bot))
+# [SỬA LỖI] Loại bỏ khối code bị trùng lặp
