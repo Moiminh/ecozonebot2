@@ -51,7 +51,20 @@ SHOP_ITEMS = {
     "laptop": {"price": 1000, "description": "Một chiếc laptop đa năng.", "sell_price": 500},
     "fishing_rod": {"price": 500, "description": "Cần câu tốt hơn.", "sell_price": 200},
 }
-
+# Vật phẩm tiêu thụ MỚI
+    "banh_mi": {
+        "price": 50, "description": "Ổ bánh mì giòn, giúp bạn đỡ đói.", "sell_price": 10,
+        "type": "consumable", "effect": {"stat": "hunger", "value": 20}
+    },
+    "nuoc_tang_luc": {
+        "price": 75, "description": "Nước tăng lực, giúp bạn tỉnh táo và đầy năng lượng.", "sell_price": 15,
+        "type": "consumable", "effect": {"stat": "energy", "value": 30}
+    },
+    "hop_cuu_thuong": {
+        "price": 200, "description": "Hộp cứu thương nhỏ, giúp hồi phục một ít máu.", "sell_price": 40,
+        "type": "consumable", "effect": {"stat": "health", "value": 25}
+    }
+}
 # Các vật phẩm đặc biệt (Visa, Balo), giá bằng tiền Bank trung tâm
 UTILITY_ITEMS = {
     "ecobank_small": {
