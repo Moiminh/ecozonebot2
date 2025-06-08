@@ -1,3 +1,4 @@
+# bot/cogs/earn/rob_cmd.py
 import nextcord
 from nextcord.ext import commands
 import random
@@ -6,103 +7,101 @@ import logging
 
 from core.database import (
     load_economy_data,
+    save_economy_data,
     get_or_create_global_user_profile,
-    get_or_create_user_server_data,
-    save_economy_data
+    get_or_create_user_local_data
 )
-from core.utils import try_send, get_time_left_str
-from core.config import CURRENCY_SYMBOL, ROB_COOLDOWN, ROB_SUCCESS_RATE, ROB_FINE_RATE
-from core.icons import ICON_LOADING, ICON_ERROR, ICON_INFO, ICON_ROB, ICON_MONEY_BAG
+from core.utils import try_send
+from core.config import (
+    ROB_COOLDOWN, ROB_SUCCESS_RATE, ROB_FINE_RATE,
+    ROB_ENERGY_COST, ROB_HUNGER_COST
+)
+from core.icons import (
+    ICON_LOADING, ICON_ERROR, ICON_INFO, ICON_ROB,
+    ICON_MONEY_BAG, ICON_SURVIVAL
+)
 
 logger = logging.getLogger(__name__)
 
 class RobCommandCog(commands.Cog, name="Rob Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.debug(f"RobCommandCog initialized for Ecoworld Economy.")
+        logger.info("RobCommandCog (v3 - with Survival) initialized.")
 
     @commands.command(name='rob', aliases=['steal'])
     async def rob(self, ctx: commands.Context, target: nextcord.Member):
         if not ctx.guild:
             await try_send(ctx, content=f"{ICON_ERROR} Bạn chỉ có thể thực hiện hành vi phạm tội này trong một server!")
             return
-            
-        author = ctx.author
+
+        if target.bot or target.id == ctx.author.id:
+            await try_send(ctx, content=f"{ICON_ERROR} Không thể cướp người chơi này.")
+            return
+
+        author_id = ctx.author.id
+        target_id = target.id
         guild_id = ctx.guild.id
-        
-        logger.debug(f"Lệnh 'rob' được gọi bởi {author.name} ({author.id}) nhắm vào {target.name} ({target.id}) tại guild '{ctx.guild.name}' ({guild_id}).")
 
-        if target.id == author.id:
-            await try_send(ctx, content=f"{ICON_ERROR} Bạn không thể tự cướp mình!")
-            return
-        if target.bot:
-            await try_send(ctx, content=f"{ICON_ERROR} Bạn không thể cướp bot!")
-            return
+        try:
+            economy_data = load_economy_data()
+            author_global_profile = get_or_create_global_user_profile(economy_data, author_id)
+            target_global_profile = get_or_create_global_user_profile(economy_data, target_id)
+            author_local_data = get_or_create_user_local_data(author_global_profile, guild_id)
+            target_local_data = get_or_create_user_local_data(target_global_profile, guild_id)
 
-        economy_data = load_economy_data()
-        author_global_profile = get_or_create_global_user_profile(economy_data, author.id)
-        
-        time_left = get_time_left_str(author_global_profile.get("last_rob_global"), ROB_COOLDOWN)
-        if time_left:
-            await try_send(ctx, content=f"{ICON_LOADING} Bạn vừa mới đi cướp xong! Lệnh `rob` (toàn cục) chờ: **{time_left}**.")
-            return
+            # --- KIỂM TRA CHỈ SỐ SINH TỒN ---
+            stats = author_local_data.get("survival_stats")
+            if stats["energy"] < ROB_ENERGY_COST:
+                await try_send(ctx, content=f"{ICON_SURVIVAL} Bạn quá mệt để cướp!")
+                return
+            if stats["hunger"] < ROB_HUNGER_COST:
+                await try_send(ctx, content=f"{ICON_SURVIVAL} Đói quá, không chạy nổi để cướp!")
+                return
 
-        target_global_profile = get_or_create_global_user_profile(economy_data, target.id)
-        target_server_data = get_or_create_user_server_data(target_global_profile, guild_id)
-        target_local_balance_dict = target_server_data.get("local_balance", {})
-        original_target_local_balance = target_local_balance_dict.get("earned", 0) + target_local_balance_dict.get("admin_added", 0)
+            # --- Kiểm tra Cooldown ---
+            now = datetime.now().timestamp()
+            last_rob = author_global_profile.get("cooldowns", {}).get("rob", 0)
+            if now - last_rob < ROB_COOLDOWN:
+                time_left = str(datetime.fromtimestamp(last_rob + ROB_COOLDOWN) - datetime.now()).split('.')[0]
+                await try_send(ctx, content=f"{ICON_LOADING} Cảnh sát đang rình! Lệnh `rob` còn chờ: **{time_left}**.")
+                return
 
-        author_global_profile["last_rob_global"] = datetime.now().timestamp()
+            # --- Trừ chỉ số sinh tồn ---
+            stats["energy"] = max(0, stats["energy"] - ROB_ENERGY_COST)
+            stats["hunger"] = max(0, stats["hunger"] - ROB_HUNGER_COST)
 
-        if original_target_local_balance < 200: # Cần một lượng tiền tối thiểu trong ví local của mục tiêu
-            logger.info(f"ROB FAILED (TARGET POOR): User {author.display_name} ({author.id}) thử 'rob' {target.display_name} ({target.id}) nhưng ví local của mục tiêu quá nghèo (dưới 200).")
-            await try_send(ctx, content=f"{ICON_INFO} {target.mention} quá nghèo để cướp tại server này.")
+            # --- Thực hiện hành động ---
+            victim_balance = target_local_data["local_balance"]["earned"] + target_local_data["local_balance"]["adadd"]
+            author_global_profile["cooldowns"]["rob"] = now
+
+            if victim_balance < 200:
+                await try_send(ctx, content=f"{ICON_INFO} {target.mention} quá nghèo để cướp.")
+                save_economy_data(economy_data)
+                return
+
+            if random.random() < ROB_SUCCESS_RATE:
+                robbed_amount = random.randint(int(victim_balance * 0.1), int(victim_balance * 0.3))
+                robbed_amount = min(robbed_amount, victim_balance)
+                author_local_data["local_balance"]["earned"] += robbed_amount
+
+                earned_deducted = min(target_local_data["local_balance"]["earned"], robbed_amount)
+                adadd_deducted = robbed_amount - earned_deducted
+                target_local_data["local_balance"]["earned"] -= earned_deducted
+                target_local_data["local_balance"]["adadd"] -= adadd_deducted
+
+                await try_send(ctx, content=f"{ICON_ROB} Bạn đã cướp được **{robbed_amount:,}** {ICON_MONEY_BAG} từ {target.mention}!")
+            else:
+                fine_amount = int(author_local_data["local_balance"]["earned"] * ROB_FINE_RATE)
+                fine_amount = min(fine_amount, author_local_data["local_balance"]["earned"])
+                author_local_data["local_balance"]["earned"] -= fine_amount
+
+                await try_send(ctx, content=f"👮 {ICON_ERROR} Bạn đã bị bắt và bị phạt **{fine_amount:,}** {ICON_MONEY_BAG} từ Ví Local của bạn.")
+
             save_economy_data(economy_data)
-            return
-        
-        if random.random() < ROB_SUCCESS_RATE:
-            min_rob_amount = int(original_target_local_balance * 0.10)
-            max_rob_amount = int(original_target_local_balance * 0.30) # Giảm % cướp được tối đa
-            max_rob_amount = max(min_rob_amount, max_rob_amount)
-            
-            robbed_amount = 0
-            if max_rob_amount > 0:
-                 robbed_amount = random.randint(min_rob_amount, max_rob_amount)
-            
-            if robbed_amount <= 0:
-                 await try_send(ctx,content=f"{ICON_INFO} {target.mention} có quá ít tiền trong Ví Local để cướp có ý nghĩa.")
-                 save_economy_data(economy_data)
-                 return
 
-            author_server_data = get_or_create_user_server_data(author_global_profile, guild_id)
-            author_server_data["local_balance"]["earned"] += robbed_amount
-            
-            target_earned_deducted = min(target_local_balance_dict.get("earned", 0), robbed_amount)
-            target_admin_deducted = robbed_amount - target_earned_deducted
-            target_local_balance_dict["earned"] -= target_earned_deducted
-            target_local_balance_dict["admin_added"] -= target_admin_deducted
-
-            logger.info(f"ROB SUCCESS: Guild: {ctx.guild.name} ({guild_id}) - User {author.display_name} ({author.id}) đã cướp {robbed_amount:,} {CURRENCY_SYMBOL} từ {target.display_name} ({target.id}). Số tiền được cộng vào Ví Local (Earned) của người cướp.")
-            
-            await try_send(ctx, content=f"{ICON_ROB} Bạn đã cướp thành công **{robbed_amount:,}** {CURRENCY_SYMBOL} từ Ví Local của {target.mention}!")
-        else:
-            author_server_data = get_or_create_user_server_data(author_global_profile, guild_id)
-            author_local_balance_dict = author_server_data.get("local_balance", {})
-            original_author_total_local_balance = author_local_balance_dict.get("earned", 0) + author_local_balance_dict.get("admin_added", 0)
-            
-            fine_amount = min(int(original_author_total_local_balance * ROB_FINE_RATE), original_author_total_local_balance) 
-
-            admin_money_deducted = min(author_local_balance_dict.get("admin_added", 0), fine_amount)
-            earned_money_deducted = fine_amount - admin_money_deducted
-            author_local_balance_dict["admin_added"] -= admin_money_deducted
-            author_local_balance_dict["earned"] -= earned_money_deducted
-
-            logger.info(f"ROB FAILED (CAUGHT): Guild: {ctx.guild.name} ({guild_id}) - User {author.display_name} ({author.id}) cướp thất bại {target.display_name} ({target.id}) và bị phạt {fine_amount:,} {CURRENCY_SYMBOL} từ Ví Local.")
-
-            await try_send(ctx, content=f"👮 {ICON_ERROR} Bạn đã bị bắt khi cố cướp {target.mention} và bị phạt **{fine_amount:,}** {CURRENCY_SYMBOL} từ Ví Local của bạn.")
-        
-        save_economy_data(economy_data)
-        logger.debug(f"Lệnh 'rob' từ {author.name} nhắm vào {target.name} tại guild {ctx.guild.name} đã xử lý xong.")
+        except Exception as e:
+            logger.error(f"Lỗi trong lệnh 'rob' cho user {author_id}: {e}", exc_info=True)
+            await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi thực hiện hành vi cướp.")
 
 def setup(bot: commands.Bot):
     bot.add_cog(RobCommandCog(bot))
