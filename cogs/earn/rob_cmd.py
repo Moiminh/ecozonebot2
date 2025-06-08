@@ -2,6 +2,10 @@
 import nextcord
 from nextcord.ext import commands
 import random
+# bot/cogs/earn/rob_cmd.py
+import nextcord
+from nextcord.ext import commands
+import random
 from datetime import datetime
 import logging
 
@@ -45,6 +49,11 @@ class RobCommandCog(commands.Cog, name="Rob Command"):
         try:
             economy_data = load_economy_data()
             author_global_profile = get_or_create_global_user_profile(economy_data, author_id)
+        if author_global_profile.get("last_active_guild_id") != guild_id:
+            await handle_travel_event(ctx, self.bot)
+            logger.info(f"User {author_id} has 'traveled' to guild {guild_id}. (Travel event)")
+        author_global_profile["last_active_guild_id"] = guild_id
+
             target_global_profile = get_or_create_global_user_profile(economy_data, target_id)
             author_local_data = get_or_create_user_local_data(author_global_profile, guild_id)
             target_local_data = get_or_create_user_local_data(target_global_profile, guild_id)
@@ -105,3 +114,4 @@ class RobCommandCog(commands.Cog, name="Rob Command"):
 
 def setup(bot: commands.Bot):
     bot.add_cog(RobCommandCog(bot))
+
