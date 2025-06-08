@@ -41,6 +41,11 @@ class FishCommandCog(commands.Cog, name="Fish Command"):
         try:
             economy_data = load_economy_data()
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
+            if global_profile.get("last_active_guild_id") != guild_id:
+            await handle_travel_event(ctx, self.bot)
+            logger.info(f"User {author_id} has 'traveled' to guild {guild_id}. (Travel event)")
+        global_profile["last_active_guild_id"] = guild_id
+
             local_data = get_or_create_user_local_data(global_profile, guild_id)
 
             # --- KIỂM TRA CHỈ SỐ SINH TỒN ---
