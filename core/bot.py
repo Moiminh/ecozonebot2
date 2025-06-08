@@ -8,6 +8,20 @@ from core.database import load_economy_data, get_or_create_guild_config
 from core.utils import try_send 
 from core.icons import ICON_ERROR, ICON_WARNING, ICON_INFO, ICON_LOADING, ICON_SUCCESS 
 
+AI_ENABLED = False
+try:
+    # Thử import thư viện AI
+    import google.generativeai as genai
+    # Kiểm tra API Key (giả sử bạn lưu trong file .env)
+    if os.getenv("GEMINI_API_KEY"):
+        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        AI_ENABLED = True
+        logging.info("Thư viện AI và API Key hợp lệ. Trợ lý AI sẽ được kích hoạt.")
+    else:
+        logging.warning("Không tìm thấy GEMINI_API_KEY. Trợ lý AI sẽ bị vô hiệu hóa.")
+except ImportError:
+    logging.warning("Thư viện google.generativeai chưa được cài đặt. Trợ lý AI sẽ bị vô hiệu hóa.")
+
 intents = nextcord.Intents.default()
 intents.message_content = True 
 intents.members = True       
@@ -92,7 +106,7 @@ async def on_command_error(ctx: commands.Context, error):
         logger.error(f"Lỗi không xác định trong lệnh '{ctx.command.name if ctx.command else 'unknown'}' bởi user {ctx.author.id}:", exc_info=True)
         await try_send(ctx, content=f"{ICON_ERROR} Ối! Đã có lỗi không mong muốn xảy ra khi thực hiện lệnh. 😵‍💫")
 
-def load_all_cogs():
+def load_all_cogs(self):
     logger.info(f"--------------------------------------------------")
     logger.info(f"Đang tải các Cogs...")
     loaded_cogs_count = 0
@@ -117,3 +131,20 @@ def load_all_cogs():
                     logger.error(f"  [!] LỖI khi tải Cog {extension_path}: Loại lỗi: {type(e).__name__} - {e}", exc_info=True) 
     logger.info(f"--- Hoàn tất! Đã tải {loaded_cogs_count} Cogs. ---")
     logger.info(f"--------------------------------------------------")
+
+        for foldername in os.listdir('./cogs'):
+            if os.path.isdir(f'./cogs/{foldername}'):
+                for filename in os.listdir(f'./cogs/{foldername}'):
+                    if filename.endswith('.py'):
+                        cog_name = f"cogs.{foldername}.{filename[:-3]}"
+                        
+                        # <<< LOGIC KIỂM TRA ĐIỀU KIỆN MỚI >>>
+                        if foldername == 'ai' and not AI_ENABLED:
+                            logger.info(f"Bỏ qua việc tải Cog AI: {cog_name}")
+                            continue
+                        
+                        try:
+                            self.load_extension(cog_name)
+                            logger.info(f"Đã tải Cog: {cog_name}")
+                        except Exception as e:
+                            logger.error(f"Không thể tải Cog {cog_name}: {e}", exc_info=True)
