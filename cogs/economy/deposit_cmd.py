@@ -15,13 +15,14 @@ from core.icons import (
     ICON_BANK_MAIN, ICON_MONEY_BAG, ICON_SUCCESS, ICON_ERROR,
     ICON_WARNING, ICON_INFO, ICON_ECOIN
 )
+from core.travel_manager import handle_travel_event
 
 logger = logging.getLogger(__name__)
 
 class DepositCommandCog(commands.Cog, name="Deposit Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("DepositCommandCog (v3) initialized.")
+        logger.info("DepositCommandCog (v4) initialized.")
 
     @commands.command(name='deposit', aliases=['dep'])
     async def deposit(self, ctx: commands.Context, amount_str: str):
@@ -36,8 +37,14 @@ class DepositCommandCog(commands.Cog, name="Deposit Command"):
         try:
             economy_data = load_economy_data()
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
+
+            # --- Kiểm tra Last Active Guild ---
+            if global_profile.get("last_active_guild_id") != guild_id:
+                await handle_travel_event(ctx, self.bot)
+                logger.info(f"User {author_id} has 'traveled' to guild {guild_id}.")
+            global_profile["last_active_guild_id"] = guild_id
+
             local_data = get_or_create_user_local_data(global_profile, guild_id)
-            
             earned_balance = local_data["local_balance"].get("earned", 0)
 
             # --- Xử lý số tiền muốn gửi ---
@@ -102,7 +109,7 @@ class DepositCommandCog(commands.Cog, name="Deposit Command"):
             await try_send(ctx, content=msg)
 
         except Exception as e:
-            logger.error(f"Lỗi trong lệnh 'deposit' (v3) cho user {author_id}: {e}", exc_info=True)
+            logger.error(f"Lỗi trong lệnh 'deposit' (v4) cho user {author_id}: {e}", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn gửi tiền.")
 
 def setup(bot: commands.Bot):
