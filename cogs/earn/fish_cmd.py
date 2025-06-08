@@ -5,21 +5,10 @@ import random
 from datetime import datetime
 import logging
 
-from core.database import (
-    load_economy_data,
-    save_economy_data,
-    get_or_create_global_user_profile,
-    get_or_create_user_local_data
-)
-from core.utils import try_send
-from core.config import (
-    FISH_COOLDOWN, FISH_CATCHES,
-    FISH_ENERGY_COST, FISH_HUNGER_COST
-)
-from core.icons import (
-    ICON_LOADING, ICON_FISH, ICON_ERROR, ICON_TIEN_SACH,
-    ICON_MONEY_BAG, ICON_SURVIVAL
-)
+from core.database import get_or_create_global_user_profile, get_or_create_user_local_data
+from core.utils import try_send, require_travel_check
+from core.config import FISH_COOLDOWN, FISH_CATCHES, FISH_ENERGY_COST, FISH_HUNGER_COST
+from core.icons import ICON_LOADING, ICON_FISH, ICON_ERROR, ICON_TIEN_SACH, ICON_MONEY_BAG, ICON_SURVIVAL
 from core.leveling import check_and_process_levelup
 
 logger = logging.getLogger(__name__)
@@ -27,25 +16,18 @@ logger = logging.getLogger(__name__)
 class FishCommandCog(commands.Cog, name="Fish Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("FishCommandCog (v3 - with Survival) initialized.")
+        logger.info("FishCommandCog (v4 - Refactored) initialized.")
 
     @commands.command(name='fish')
+    @commands.guild_only()
+    @require_travel_check
     async def fish(self, ctx: commands.Context):
-        if not ctx.guild:
-            await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
-            return
-
         author_id = ctx.author.id
         guild_id = ctx.guild.id
 
         try:
-            economy_data = load_economy_data()
+            economy_data = self.bot.economy_data
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
-            if global_profile.get("last_active_guild_id") != guild_id:
-            await handle_travel_event(ctx, self.bot)
-            logger.info(f"User {author_id} has 'traveled' to guild {guild_id}. (Travel event)")
-        global_profile["last_active_guild_id"] = guild_id
-
             local_data = get_or_create_user_local_data(global_profile, guild_id)
 
             # --- KIỂM TRA CHỈ SỐ SINH TỒN ---
@@ -82,7 +64,6 @@ class FishCommandCog(commands.Cog, name="Fish Command"):
             await check_and_process_levelup(ctx, local_data, 'local')
             await check_and_process_levelup(ctx, global_profile, 'global')
 
-            save_economy_data(economy_data)
             total_local_balance = local_data["local_balance"]["earned"] + local_data["local_balance"]["adadd"]
             await try_send(
                 ctx,
