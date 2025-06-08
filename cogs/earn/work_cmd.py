@@ -4,25 +4,16 @@ from nextcord.ext import commands
 import random
 from datetime import datetime
 import logging
-# bot/cogs/earn/work_cmd.py
-import nextcord
-from nextcord.ext import commands
-import random
-from datetime import datetime
-import logging
 
 from core.database import (
-    load_economy_data,
-    save_economy_data,
     get_or_create_global_user_profile,
     get_or_create_user_local_data
 )
-# [CẢI TIẾN] Import decorator mới
 from core.utils import try_send, require_travel_check
 from core.config import WORK_COOLDOWN, WORK_ENERGY_COST, WORK_HUNGER_COST
 from core.leveling import check_and_process_levelup
 from core.icons import (
-    ICON_LOADING, ICON_WORK, ICON_MONEY_BAG, ICON_ERROR, 
+    ICON_LOADING, ICON_WORK, ICON_ERROR, 
     ICON_ECOIN, ICON_SURVIVAL
 )
 
@@ -34,16 +25,14 @@ class WorkCommandCog(commands.Cog, name="Work Command"):
         logger.info("WorkCommandCog (v4 - Refactored) initialized.")
 
     @commands.command(name='work', aliases=['w'])
-    @commands.guild_only() # Đảm bảo lệnh chỉ chạy trong server
-    @require_travel_check # Áp dụng decorator ở đây
+    @commands.guild_only()
+    @require_travel_check
     async def work(self, ctx: commands.Context):
         """Làm việc chăm chỉ để kiếm tiền sạch và kinh nghiệm (tiêu tốn năng lượng và độ no)."""
         author_id = ctx.author.id
         guild_id = ctx.guild.id
         
         try:
-            # [CẢI TIẾN] Không cần load/save data trong mỗi lệnh nữa nếu dùng cache
-            # Thay vào đó, ta truy cập trực tiếp vào dữ liệu của bot
             economy_data = self.bot.economy_data
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
             local_data = get_or_create_user_local_data(global_profile, guild_id)
@@ -75,7 +64,6 @@ class WorkCommandCog(commands.Cog, name="Work Command"):
             local_data["xp_local"] += xp_earned_local
             global_profile["xp_global"] += xp_earned_global
             global_profile["cooldowns"]["work"] = now
-            # [CẢI TIẾN] Không cần cập nhật last_active_guild_id ở đây nữa, decorator đã làm
             
             # Trừ chỉ số sinh tồn
             stats["energy"] = max(0, stats["energy"] - WORK_ENERGY_COST)
@@ -95,15 +83,15 @@ class WorkCommandCog(commands.Cog, name="Work Command"):
             await check_and_process_levelup(ctx, local_data, 'local')
             await check_and_process_levelup(ctx, global_profile, 'global')
 
-            # [CẢI TIẾN] Không cần save data ở đây, tác vụ autosave sẽ làm
-
         except Exception as e:
             logger.error(f"Lỗi trong lệnh 'work' (v4) cho user {author_id}: {e}", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn đang làm việc.")
 
 def setup(bot: commands.Bot):
-    bot.add_cog(WorkCommandCog(bot))
-f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn đang làm việc.")
-
-def setup(bot: commands.Bot):
-    bot.add_cog(WorkCommandCog(bot))
+    bot.add_cog(WorkCommandCog(bot))# bot/cogs/earn/work_cmd.py
+import nextcord
+from nextcord.ext import commands
+import random
+from datetime import datetime
+import logging
+_cog(WorkCommandCog(bot))
