@@ -1,0 +1,79 @@
+{
+  "shop_items": {
+    "laptop": {
+      "price": 1000,
+      "description": "Một chiếc laptop đa năng.",
+      "sell_price": 500,
+      "max_stock": 20
+    },
+    "fishing_rod": {
+      "price": 500,
+      "description": "Cần câu tốt hơn.",
+      "sell_price": 200,
+      "max_stock": 30
+    },
+    "banh_mi": {
+      "price": 50,
+      "description": "Ổ bánh mì giòn, giúp bạn đỡ đói.",
+      "sell_price": 10,
+      "type": "consumable",
+      "effect": {
+        "stat": "hunger",
+        "value": 20
+      }
+    },
+    "nuoc_tang_luc": {
+      "price": 75,
+      "description": "Nước tăng lực, giúp bạn tỉnh táo và đầy năng lượng.",
+      "sell_price": 15,
+      "type": "consumable",
+      "effect": {
+        "stat": "energy",
+        "value": 30
+      }
+    },
+    "hop_cuu_thuong": {
+      "price": 200,
+      "description": "Hộp cứu thương nhỏ, giúp hồi phục một ít máu.",
+      "sell_price": 40,
+      "type": "consumable",
+      "effect": {
+        "stat": "health",
+        "value": 25
+      }
+    }
+  },
+  "utility_items": {
+    "ecobank_small": {
+      "price": 1000,
+      "name": "Ecobank Card (Nhỏ)",
+      "description": "Thẻ thanh toán nội địa cỡ nhỏ.",
+      "type": "visa",
+      "visa_type": "local",
+      "capacity": 10000
+    },
+    "ecobank_medium": {
+      "price": 5000,
+      "name": "Ecobank Card (Vừa)",
+      "description": "Thẻ thanh toán nội địa cỡ vừa.",
+      "type": "visa",
+      "visa_type": "local",
+      "capacity": 50000
+    },
+    "ecovisa_standard": {
+      "price": 25000,
+      "name": "Ecovisa Card (Tiêu chuẩn)",
+      "description": "Thẻ thanh toán quốc tế tiêu chuẩn.",
+      "type": "visa",
+      "visa_type": "international",
+      "capacity": 100000
+    },
+    "backpack_small": {
+      "price": 50000,
+      "name": "Balo Du lịch (Nhỏ)",
+      "description": "Balo du lịch nhỏ, mang được 1 vật phẩm.",
+      "type": "backpack",
+      "capacity": 1
+    }
+  }
+}
