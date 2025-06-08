@@ -69,9 +69,10 @@ async def on_message(message: nextcord.Message):
                 logger.info(f"BARE_CMD_TRANSFORM: '{content}' by {message.author.name} -> '{message.content}'")
             else:
                 logger.warning(f"BARE_CMD_INVALID_MAP: Lệnh tắt '{command_candidate}' trỏ đến lệnh gốc '{actual_command_name}' KHÔNG TỒN TẠI.")
-        else:
-            if len(content.split()) <= 3: 
-                 await try_send(message.channel, content=f"{ICON_ERROR} Lệnh tắt `{command_candidate}` không hợp lệ. Dùng `/menu`.")
+        # [SỬA LỖI] Loại bỏ việc gửi tin nhắn lỗi cho các tin nhắn thường
+        # else:
+        #     if len(content.split()) <= 3: 
+        #          await try_send(message.channel, content=f"{ICON_ERROR} Lệnh tắt `{command_candidate}` không hợp lệ. Dùng `/menu`.")
     
     elif content.startswith(COMMAND_PREFIX):
         should_process_this_message_as_command = True
@@ -106,35 +107,96 @@ async def on_command_error(ctx: commands.Context, error):
         logger.error(f"Lỗi không xác định trong lệnh '{ctx.command.name if ctx.command else 'unknown'}' bởi user {ctx.author.id}:", exc_info=True)
         await try_send(ctx, content=f"{ICON_ERROR} Ối! Đã có lỗi không mong muốn xảy ra khi thực hiện lệnh. 😵‍💫")
 
-def load_all_cogs(self):
+# [SỬA LỖI] Sửa lại toàn bộ hàm load_all_cogs và loại bỏ code thừa
+def load_all_cogs():
     logger.info(f"--------------------------------------------------")
     logger.info(f"Đang tải các Cogs...")
     loaded_cogs_count = 0
-    cogs_main_directory = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'cogs')
+    # Đường dẫn đến thư mục cogs từ file bot.py
+    cogs_main_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cogs')
+    
     for root, dirs, files in os.walk(cogs_main_directory):
-        dirs[:] = [d for d in dirs if d != '__pycache__']
+        # Bỏ qua thư mục __pycache__
+        if '__pycache__' in dirs:
+            dirs.remove('__pycache__')
+            
         for filename in files:
             if filename.endswith('.py') and not filename.startswith('_'): 
-                module_name_only = filename[:-3] 
-                relative_path_to_cog_folder = os.path.relpath(root, cogs_main_directory)
-                extension_path = ""
-                if relative_path_to_cog_folder == ".": 
-                    extension_path = f"cogs.{module_name_only}"
+                # Lấy đường dẫn tương đối từ 'cogs'
+                relative_path = os.path.relpath(root, cogs_main_directory)
+                
+                # Xác định xem cog có nằm trong thư mục con hay không
+                # Ví dụ: 'ai' hoặc 'earn'
+                sub_folder_name = relative_path.split(os.sep)[0] if relative_path != '.' else None
+
+                # <<< LOGIC KIỂM TRA ĐIỀU KIỆN MỚI >>>
+                if sub_folder_name == 'ai' and not AI_ENABLED:
+                    logger.warning(f"  [~] Bỏ qua việc tải Cog AI do bị vô hiệu hóa: cogs.{sub_folder_name}.{filename[:-3]}")
+                    continue
+                
+                # Tạo chuỗi extension path để load
+                if relative_path == ".": 
+                    extension_path = f"cogs.{filename[:-3]}"
                 else: 
-                    python_module_subpath = relative_path_to_cog_folder.replace(os.sep, '.')
-                    extension_path = f"cogs.{python_module_subpath}.{module_name_only}"
+                    python_module_path = relative_path.replace(os.sep, '.')
+                    extension_path = f"cogs.{python_module_path}.{filename[:-3]}"
+                
                 try:
                     bot.load_extension(extension_path)
                     logger.info(f"  [+] Đã tải thành công Cog: {extension_path}")
                     loaded_cogs_count += 1
                 except Exception as e: 
-                    logger.error(f"  [!] LỖI khi tải Cog {extension_path}: Loại lỗi: {type(e).__name__} - {e}", exc_info=True) 
+                    logger.error(f"  [!] LỖI khi tải Cog {extension_path}:", exc_info=True) 
+
     logger.info(f"--- Hoàn tất! Đã tải {loaded_cogs_count} Cogs. ---")
+    logger.info(f"--------------------------------------------------")import nextcord
+from nextcord.ext import commands
+import os 
+import logging 
+
+from core.config import COMMAND_PREFIX, BARE_COMMAND_MAP 
+from core.database import load_economy_data, get_or_create_guild_config
+from core.utils import try_send 
+from core.icons import ICON_ERROR, ICON_WARNING, ICON_INFO, ICON_LOADING, ICON_SUCCESS 
+
+AI_ENABLED = False
+try:
+    # Thử import thư viện AI
+    import google.generativeai as genai
+    # Kiểm tra API Key (giả sử bạn lưu trong file .env)
+    if os.getenv("GEMINI_API_KEY"):
+        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        AI_ENABLED = True
+        logging.info("Thư viện AI và API Key hợp lệ. Trợ lý AI sẽ được kích hoạt.")
+    else:
+        logging.warning("Không tìm thấy GEMINI_API_KEY. Trợ lý AI sẽ bị vô hiệu hóa.")
+except ImportError:
+    logging.warning("Thư viện google.generativeai chưa được cài đặt. Trợ lý AI sẽ bị vô hiệu hóa.")
+
+intents = nextcord.Intents.default()
+intents.message_content = True 
+intents.members = True       
+bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
+logger = logging.getLogger(__name__) 
+
+@bot.event
+async def on_ready():
+    logger.info(f"--------------------------------------------------")
+    logger.info(f"{ICON_SUCCESS} Bot đã đăng nhập với tên: {bot.user.name} (ID: {bot.user.id})")
+    logger.info(f"{ICON_INFO} Prefix lệnh: {COMMAND_PREFIX}")
+    logger.info(f"Nextcord Version: {nextcord.__version__}")
+    logger.info(f"Bot đã sẵn sàng và đang chờ lệnh!")
+    logger.info(f"{ICON_INFO} Để xem trợ giúp, hãy gõ /menu trên Discord.")
     logger.info(f"--------------------------------------------------")
 
-        for foldername in os.listdir('./cogs'):
-            if os.path.isdir(f'./cogs/{foldername}'):
-                for filename in os.listdir(f'./cogs/{foldername}'):
+@bot.event
+async def on_message(message: nextcord.Message):
+    logger.debug(f"ON_MESSAGE: Received message: '{message.content}' from {message.author.name} ({message.author.id})")
+
+    if message.author.bot or not message.guild:
+        return
+
+            for filename in os.listdir(f'./cogs/{foldername}'):
                     if filename.endswith('.py'):
                         cog_name = f"cogs.{foldername}.{filename[:-3]}"
                         
