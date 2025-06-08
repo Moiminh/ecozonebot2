@@ -3,46 +3,28 @@ import nextcord
 from nextcord.ext import commands
 import logging
 
-from core.database import (
-    load_economy_data,
-    save_economy_data,
-    get_or_create_global_user_profile,
-    get_or_create_user_local_data
-)
-from core.utils import try_send
-from core.icons import (
-    ICON_BANK, ICON_MONEY_BAG, ICON_SUCCESS, ICON_ERROR,
-    ICON_WARNING, ICON_INFO, ICON_TIEN_SACH
-)
-from core.travel_manager import handle_travel_event
+from core.database import get_or_create_global_user_profile, get_or_create_user_local_data
+from core.utils import try_send, require_travel_check
+from core.icons import ICON_BANK, ICON_MONEY_BAG, ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO, ICON_TIEN_SACH
 
 logger = logging.getLogger(__name__)
 
 class WithdrawCommandCog(commands.Cog, name="Withdraw Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("WithdrawCommandCog (v3) initialized.")
+        logger.info("WithdrawCommandCog (v4 - Refactored) initialized.")
 
     @commands.command(name='withdraw', aliases=['wd'])
+    @commands.guild_only()
+    @require_travel_check
     async def withdraw(self, ctx: commands.Context, amount_str: str):
         """Rút tiền từ Bank về Ví Local (sẽ được cộng vào Tiền Sạch)."""
-        if not ctx.guild:
-            await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
-            return
-
         author_id = ctx.author.id
         guild_id = ctx.guild.id
         
         try:
-            economy_data = load_economy_data()
+            economy_data = self.bot.economy_data
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
-
-            # --- Kiểm tra Last Active Guild ---
-            if global_profile.get("last_active_guild_id") != guild_id:
-                await handle_travel_event(ctx, self.bot)
-                logger.info(f"User {author_id} has 'traveled' to guild {guild_id}.")
-            global_profile["last_active_guild_id"] = guild_id
-
             local_data = get_or_create_user_local_data(global_profile, guild_id)
             bank_balance = global_profile.get("bank_balance", 0)
             
@@ -70,8 +52,6 @@ class WithdrawCommandCog(commands.Cog, name="Withdraw Command"):
             global_profile["bank_balance"] -= amount_to_withdraw
             local_data["local_balance"]["earned"] += amount_to_withdraw
             
-            save_economy_data(economy_data)
-
             logger.info(f"User {author_id} tại guild {guild_id} đã withdraw {amount_to_withdraw} từ Bank về Ví Local (earned).")
 
             # Gửi thông báo thành công
@@ -89,8 +69,8 @@ class WithdrawCommandCog(commands.Cog, name="Withdraw Command"):
             )
 
         except Exception as e:
-            logger.error(f"Lỗi trong lệnh 'withdraw' (v3) cho user {author_id}: {e}", exc_info=True)
-            await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi bạn rút tiền.")
+            logger.error(f"Lỗi trong lệnh 'withdraw' cho user {author_id}: {e}", exc_info=True)
+            await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn rút tiền.")
 
 def setup(bot: commands.Bot):
     bot.add_cog(WithdrawCommandCog(bot))
