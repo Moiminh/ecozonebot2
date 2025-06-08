@@ -11,40 +11,34 @@ from core.database import (
 )
 from core.utils import try_send
 from core.config import DEPOSIT_FEE_PERCENTAGE, LAUNDER_EXCHANGE_RATE
-from core.icons import (
-    ICON_BANK_MAIN, ICON_MONEY_BAG, ICON_SUCCESS, ICON_ERROR,
-    ICON_WARNING, ICON_INFO, ICON_ECOIN
-)
-from core.travel_manager import handle_travel_event
+# bot/cogs/economy/deposit_cmd.py
+import nextcord
+from nextcord.ext import commands
+import logging
+
+from core.database import get_or_create_global_user_profile, get_or_create_user_local_data
+from core.utils import try_send, require_travel_check
+from core.config import DEPOSIT_FEE_PERCENTAGE, LAUNDER_EXCHANGE_RATE
+from core.icons import ICON_BANK_MAIN, ICON_MONEY_BAG, ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO, ICON_ECOIN
 
 logger = logging.getLogger(__name__)
 
 class DepositCommandCog(commands.Cog, name="Deposit Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("DepositCommandCog (v4) initialized.")
+        logger.info("DepositCommandCog (v5 - Refactored) initialized.")
 
     @commands.command(name='deposit', aliases=['dep'])
+    @commands.guild_only()
+    @require_travel_check
     async def deposit(self, ctx: commands.Context, amount_str: str):
         """Gửi 🪙Ecoin (Tiền Sạch) từ Ví Local vào Bank trung tâm (phí 5%)."""
-        if not ctx.guild:
-            await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
-            return
-
         author_id = ctx.author.id
-        guild_id = ctx.guild.id
         
         try:
-            economy_data = load_economy_data()
+            economy_data = self.bot.economy_data
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
-
-            # --- Kiểm tra Last Active Guild ---
-            if global_profile.get("last_active_guild_id") != guild_id:
-                await handle_travel_event(ctx, self.bot)
-                logger.info(f"User {author_id} has 'traveled' to guild {guild_id}.")
-            global_profile["last_active_guild_id"] = guild_id
-
-            local_data = get_or_create_user_local_data(global_profile, guild_id)
+            local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
             earned_balance = local_data["local_balance"].get("earned", 0)
 
             # --- Xử lý số tiền muốn gửi ---
@@ -89,8 +83,6 @@ class DepositCommandCog(commands.Cog, name="Deposit Command"):
             new_wanted_level = max(0.0, original_wanted_level - reduction_amount)
             global_profile["wanted_level"] = new_wanted_level
             
-            save_economy_data(economy_data)
-
             logger.info(f"User {author_id} đã deposit {amount_to_deposit} Ecoin. Wanted level: {original_wanted_level:.2f} -> {new_wanted_level:.2f}.")
 
             # --- Gửi thông báo thành công ---
@@ -109,8 +101,12 @@ class DepositCommandCog(commands.Cog, name="Deposit Command"):
             await try_send(ctx, content=msg)
 
         except Exception as e:
-            logger.error(f"Lỗi trong lệnh 'deposit' (v4) cho user {author_id}: {e}", exc_info=True)
+            logger.error(f"Lỗi trong lệnh 'deposit' cho user {author_id}: {e}", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn gửi tiền.")
+
+def setup(bot: commands.Bot):
+    bot.add_cog(DepositCommandCog(bot))
+      await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn gửi tiền.")
 
 def setup(bot: commands.Bot):
     bot.add_cog(DepositCommandCog(bot))
