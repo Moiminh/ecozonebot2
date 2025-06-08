@@ -15,12 +15,30 @@ from core.utils import try_send
 from core.config import (
     CRIME_COOLDOWN, CRIME_SUCCESS_RATE,
     CRIME_ENERGY_COST, CRIME_HUNGER_COST
+# bot/cogs/earn/crime_cmd.py
+import nextcord
+from nextcord.ext import commands
+import random
+from datetime import datetime
+import logging
+
+from core.database import (
+    load_economy_data,
+    save_economy_data,
+    get_or_create_global_user_profile,
+    get_or_create_user_local_data
+)
+from core.utils import try_send
+from core.config import (
+    CRIME_COOLDOWN, CRIME_SUCCESS_RATE,
+    CRIME_ENERGY_COST, CRIME_HUNGER_COST
 )
 from core.icons import (
     ICON_LOADING, ICON_CRIME, ICON_ERROR, ICON_TIEN_SACH,
     ICON_TIEN_LAU, ICON_MONEY_BAG, ICON_SURVIVAL
 )
 from core.leveling import check_and_process_levelup
+from core.travel_manager import handle_travel_event
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +59,13 @@ class CrimeCommandCog(commands.Cog, name="Crime Command"):
         try:
             economy_data = load_economy_data()
             global_profile = get_or_create_global_user_profile(economy_data, author_id)
+
+            # --- Kiểm tra Last Active Guild ---
+            if global_profile.get("last_active_guild_id") != guild_id:
+                await handle_travel_event(ctx, self.bot)
+                logger.info(f"User {author_id} has 'traveled' to guild {guild_id}.")
+            global_profile["last_active_guild_id"] = guild_id
+
             local_data = get_or_create_user_local_data(global_profile, guild_id)
 
             # --- KIỂM TRA CHỈ SỐ SINH TỒN ---
@@ -65,7 +90,7 @@ class CrimeCommandCog(commands.Cog, name="Crime Command"):
             stats["hunger"] = max(0, stats["hunger"] - CRIME_HUNGER_COST)
 
             # --- Thực hiện hành động ---
-            global_profile["cooldowns"]["crime"] = now
+            global_profile.setdefault("cooldowns", {})["crime"] = now
             crimes_list = ["trộm vặt", "buôn lậu", "hack tài khoản", "tổ chức đua xe", "lừa đảo qua mạng"]
             chosen_crime = random.choice(crimes_list)
 
@@ -110,6 +135,15 @@ class CrimeCommandCog(commands.Cog, name="Crime Command"):
 
             save_economy_data(economy_data)
             final_total_balance = local_data["local_balance"]["earned"] + local_data["local_balance"]["adadd"]
+            await try_send(ctx, content=f"Tổng Ví Local hiện tại: **{final_total_balance:,}** {ICON_MONEY_BAG}")
+
+        except Exception as e:
+            logger.error(f"Lỗi trong lệnh 'crime' cho user {author_id}: {e}", exc_info=True)
+            await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi thực hiện phi vụ.")
+
+def setup(bot: commands.Bot):
+    bot.add_cog(CrimeCommandCog(bot))
+data["local_balance"]["earned"] + local_data["local_balance"]["adadd"]
             await try_send(ctx, content=f"Tổng Ví Local hiện tại: **{final_total_balance:,}** {ICON_MONEY_BAG}")
 
         except Exception as e:
