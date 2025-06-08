@@ -11,8 +11,8 @@ load_dotenv()
 import logging 
 
 from core.logger import setup_logging 
-# [CẢI TIẾN] Import thêm hàm load/save economy data
-from core.database import load_economy_data, save_economy_data
+# [SỬA] Import thêm hàm load_item_definitions
+from core.database import load_economy_data, save_economy_data, load_item_definitions
 
 # Import đối tượng bot và hàm load_all_cogs TỪ core.bot
 from core.bot import bot, load_all_cogs 
@@ -27,13 +27,14 @@ if __name__ == "__main__":
     main_logger.info("Bắt đầu khởi chạy Bot Kinh Tế! (main.py)")
     main_logger.info("==================================================")
     
-    # [CẢI TIẾN] Load dữ liệu kinh tế vào cache của bot MỘT LẦN DUY NHẤT
     try:
-        main_logger.info("Đang tải dữ liệu kinh tế vào bộ nhớ cache...")
+        main_logger.info("Đang tải dữ liệu kinh tế và vật phẩm vào bộ nhớ cache...")
         bot.economy_data = load_economy_data()
-        main_logger.info("Tải dữ liệu kinh tế vào cache thành công.")
+        # [THÊM] Tải định nghĩa vật phẩm vào cache của bot
+        bot.item_definitions = load_item_definitions()
+        main_logger.info("Tải dữ liệu kinh tế và vật phẩm vào cache thành công.")
     except Exception as e:
-        main_logger.critical(f"Không thể tải dữ liệu kinh tế ban đầu: {e}", exc_info=True)
+        main_logger.critical(f"Không thể tải dữ liệu ban đầu: {e}", exc_info=True)
         sys.exit(1)
 
     actual_bot_token = os.getenv("BOT_TOKEN")
@@ -59,7 +60,6 @@ if __name__ == "__main__":
     except Exception as e:
         main_logger.critical(f"LỖI KHÔNG XÁC ĐỊNH KHI CHẠY BOT: {type(e).__name__} - {e}", exc_info=True)
     finally:
-        # [CẢI TIẾN] Lưu lại dữ liệu từ cache vào file lần cuối trước khi tắt
         main_logger.info("Đang lưu dữ liệu kinh tế lần cuối từ cache...")
         try:
             if hasattr(bot, 'economy_data'):
