@@ -18,6 +18,58 @@ def get_player_title(level: int, wanted_level: float) -> str:
             current_title = title
             break
             
+import nextcord
+from nextcord.ext import commands
+from datetime import datetime, timedelta
+import logging 
+from functools import wraps
+
+# [CẢI TIẾN] Import các hàm cần thiết cho decorator
+from .database import load_economy_data, get_or_create_global_user_profile
+from .travel_manager import handle_travel_event
+from .config import MODERATOR_USER_IDS, WANTED_LEVEL_CRIMINAL_THRESHOLD, CITIZEN_TITLES, CRIMINAL_TITLES
+from .icons import ICON_ERROR
+
+utils_logger = logging.getLogger(__name__)
+
+# [CẢI TIẾN] Decorator để tự động kiểm tra sự kiện "du lịch"
+def require_travel_check(func):
+    @wraps(func)
+    async def wrapper(cog_instance, ctx, *args, **kwargs):
+        if not ctx.guild:
+            # Bỏ qua check nếu lệnh được dùng trong DM hoặc không có guild context
+            return await func(cog_instance, ctx, *args, **kwargs)
+
+        author_id = ctx.author.id
+        guild_id = ctx.guild.id
+        
+        # Sử dụng economy_data từ bot cache nếu có, nếu không thì load
+        economy_data = getattr(cog_instance.bot, 'economy_data', load_economy_data())
+        global_profile = get_or_create_global_user_profile(economy_data, author_id)
+
+        if global_profile.get("last_active_guild_id") != guild_id:
+            utils_logger.info(f"TRAVEL_CHECK: User {author_id} is traveling to new guild {guild_id}. Triggering event.")
+            await handle_travel_event(ctx, cog_instance.bot)
+            # Dừng lệnh gốc lại sau khi xử lý du lịch.
+            # Người dùng cần chạy lại lệnh để tương tác với server mới.
+            # Điều này ngăn chặn race condition.
+            return
+        
+        # Nếu không có du lịch, chạy lệnh gốc
+        return await func(cog_instance, ctx, *args, **kwargs)
+    return wrapper
+
+
+def get_player_title(level: int, wanted_level: float) -> str:
+    
+    title_map = CRIMINAL_TITLES if wanted_level >= WANTED_LEVEL_CRIMINAL_THRESHOLD else CITIZEN_TITLES
+    
+    current_title = ""
+    for level_threshold, title in sorted(title_map.items(), reverse=True):
+        if level >= level_threshold:
+            current_title = title
+            break
+            
     return f"{current_title} (Level {level})"
 
 
@@ -51,7 +103,7 @@ async def try_send(target, content=None, embed=None, ephemeral=False):
 
     if guild and channel:
         try:
-            economy_data = load_economy_data()
+            economy_data = getattr(target.bot, 'economy_data', load_economy_data())
             guild_config_data = get_or_create_guild_config(economy_data, guild.id)
             if channel.id in guild_config_data.get("muted_channels", []) and not ephemeral:
                 utils_logger.warning(f"TRY_SEND_DEBUG: Kênh {channel.id} bị mute, tin nhắn công khai bị chặn.")
@@ -121,3 +173,4 @@ def format_large_number(num):
     if abs(num) < 1_000_000_000_000:
         return f"{num / 1_000_000_000:.2f}B".replace(".00", "")
     return f"{num / 1_000_000_000_000:.2f}T".replace(".00", "")
+".replace(".00", "")
