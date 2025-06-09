@@ -141,5 +141,44 @@ def update_balance(user_id: int, guild_id: int, balance_type: str, new_value: in
         
     conn.commit()
     conn.close()
+def update_user_stats(user_id: int, guild_id: int, energy_cost: int, hunger_cost: int):
+    """Cập nhật chỉ số sinh tồn sau khi thực hiện hành động."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE user_guild_data
+        SET 
+            energy = MAX(0, energy - ?),
+            hunger = MAX(0, hunger - ?)
+        WHERE user_id = ? AND guild_id = ?
+    """, (energy_cost, hunger_cost, user_id, guild_id))
+    conn.commit()
+    conn.close()
 
-# ... Chúng ta sẽ thêm các hàm khác như quản lý inventory, cooldowns ở các bước sau ...
+def update_xp(user_id: int, guild_id: int, xp_local: int, xp_global: int):
+    """Cộng điểm kinh nghiệm cho người dùng."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET xp_global = xp_global + ? WHERE user_id = ?", (xp_global, user_id))
+    cursor.execute("UPDATE user_guild_data SET xp_local = xp_local + ? WHERE user_id = ? AND guild_id = ?", (xp_local, user_id, guild_id))
+    conn.commit()
+    conn.close()
+
+def get_cooldown(user_id: int, command: str) -> float:
+    """Lấy thời gian cooldown của một lệnh. Sẽ cần một bảng riêng để tối ưu."""
+    # Giải pháp đơn giản: Lưu cooldown trong một bảng key-value
+    cursor = get_db_connection().cursor()
+    cursor.execute("CREATE TABLE IF NOT EXISTS cooldowns (key TEXT PRIMARY KEY, value REAL)")
+    key = f"{user_id}_{command}"
+    cursor.execute("SELECT value FROM cooldowns WHERE key = ?", (key,))
+    result = cursor.fetchone()
+    return result['value'] if result else 0
+
+def set_cooldown(user_id: int, command: str, timestamp: float):
+    """Thiết lập thời gian cooldown cho một lệnh."""
+    conn = get_db_connection()
+    key = f"{user_id}_{command}"
+    conn.execute("INSERT OR REPLACE INTO cooldowns (key, value) VALUES (?, ?)", (key, timestamp))
+    conn.commit()
+    conn.close()
+
