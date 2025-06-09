@@ -27,8 +27,9 @@ echo "[+] Bot đang chạy với PID: $BOT_PID"
 echo "[+] Đợi 2 giây để máy chủ web khởi động..."
 sleep 2
 
-echo "[+] Đang khởi động đường hầm với localhost.run cho cổng 8080..."
+echo "[+] Đang khởi động đường hầm với localtunnel cho cổng 8080..."
 echo "[!] Nhấn Ctrl+C để dừng cả đường hầm và bot."
 
-# Chạy localhost.run ở chế độ foreground
-ssh -R 80:localhost:8080 localhost.run
+# Chạy localtunnel ở chế độ foreground
+# Lệnh 'lt' là viết tắt của localtunnel
+lt --port 8080
