@@ -3,19 +3,6 @@ import nextcord
 from nextcord.ext import commands
 import logging
 
-from core.database import (
-    load_economy_data,
-    save_economy_data,
-    get_or_create_global_user_profile,
-    get_or_create_user_local_data
-)
-from core.utils import try_send
-from core.config import DEPOSIT_FEE_PERCENTAGE, LAUNDER_EXCHANGE_RATE
-# bot/cogs/economy/deposit_cmd.py
-import nextcord
-from nextcord.ext import commands
-import logging
-
 from core.database import get_or_create_global_user_profile, get_or_create_user_local_data
 from core.utils import try_send, require_travel_check
 from core.config import DEPOSIT_FEE_PERCENTAGE, LAUNDER_EXCHANGE_RATE
@@ -103,10 +90,6 @@ class DepositCommandCog(commands.Cog, name="Deposit Command"):
         except Exception as e:
             logger.error(f"Lỗi trong lệnh 'deposit' cho user {author_id}: {e}", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn gửi tiền.")
-
-def setup(bot: commands.Bot):
-    bot.add_cog(DepositCommandCog(bot))
-      await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn gửi tiền.")
 
 def setup(bot: commands.Bot):
     bot.add_cog(DepositCommandCog(bot))
