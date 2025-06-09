@@ -17,8 +17,8 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
         logger.info("SellCommandCog (v4 - Refactored) initialized.")
 
     @commands.command(name='sell')
-    async def sell(self, ctx: commands.Context, item_id: str, quantity: int = 1):
-        """Bán một vật phẩm từ túi đồ của bạn. Giá trị thu về phụ thuộc vào nguồn gốc vật phẩm."""
+    async def sell(self, ctx: commands.Context, item_id: str, quantity: int = 1, item_type: str = "bẩn"):
+        """Bán một vật phẩm từ túi đồ. Ưu tiên bán 'bẩn' hoặc 'sạch'."""
         if not ctx.guild:
             await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
             return
@@ -43,17 +43,30 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
             inv_global = global_profile.get("inventory_global", [])
             full_inventory = inv_local + inv_global
             
-            sellable_items = [item for item in full_inventory if isinstance(item, dict) and item.get("item_id") == item_id_to_sell]
+            # [SỬA] Phân loại vật phẩm sạch và bẩn để ưu tiên bán
+            tainted_items = [item for item in full_inventory if isinstance(item, dict) and item.get("item_id") == item_id_to_sell and item.get("is_tainted", False)]
+            clean_items = [item for item in full_inventory if isinstance(item, dict) and item.get("item_id") == item_id_to_sell and not item.get("is_tainted", False)]
+
+            sellable_items = []
+            item_type_preference = item_type.lower()
+            if item_type_preference in ['bẩn', 'ban', 'tainted', 'dirty']:
+                # Ưu tiên bán đồ bẩn trước nếu người dùng muốn bán "bẩn" hoặc không chỉ định
+                sellable_items = tainted_items + clean_items
+            elif item_type_preference in ['sạch', 'sach', 'clean']:
+                # Ưu tiên bán đồ sạch nếu người dùng chỉ định
+                sellable_items = clean_items + tainted_items
+            else:
+                 await try_send(ctx, content=f"{ICON_ERROR} Loại vật phẩm không hợp lệ. Vui lòng chọn 'sạch' hoặc 'bẩn'.")
+                 return
 
             if len(sellable_items) < quantity:
-                await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ **{quantity}x {item_id_to_sell}**. Bạn chỉ có tổng cộng {len(sellable_items)} cái.")
+                await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ **{quantity}x {item_id_to_sell}** (loại ưu tiên: {item_type_preference}). Bạn chỉ có tổng cộng {len(sellable_items)} cái.")
                 return
 
             total_earnings = 0
             items_sold_count = 0
             warnings = []
 
-            # Xử lý bán từng vật phẩm một
             for i in range(quantity):
                 item_to_sell = sellable_items[i]
                 
@@ -86,7 +99,7 @@ class SellCommandCog(commands.Cog, name="Sell Command"):
                     sell_price = base_details.get("sell_price", 0)
                     final_proceeds = round(sell_price * (1 - FOREIGN_ITEM_SELL_PENALTY))
                 
-                else: # Đồ sạch
+                else:
                     final_proceeds = base_details.get("sell_price", 0)
 
                 total_earnings += final_proceeds
