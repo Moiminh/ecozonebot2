@@ -122,7 +122,14 @@ def update_balance(user_id: int, guild_id: int, balance_type: str, new_value: in
         conn.execute(f"UPDATE user_guild_data SET {balance_type} = ? WHERE user_id = ? AND guild_id = ?", (new_value, user_id, guild_id))
     conn.commit()
     conn.close()
-
+    
+def update_wanted_level(user_id: int, new_wanted_level: float):
+    """Cập nhật điểm truy nã cho người dùng."""
+    conn = get_db_connection()
+    conn.execute("UPDATE users SET wanted_level = ? WHERE user_id = ?", (new_wanted_level, user_id))
+    conn.commit()
+    conn.close()
+    
 def update_user_stats(user_id: int, guild_id: int, health: int = None, hunger: int = None, energy: int = None):
     conn = get_db_connection()
     if health is not None:
