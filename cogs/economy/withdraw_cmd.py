@@ -2,34 +2,31 @@
 import nextcord
 from nextcord.ext import commands
 import logging
-
-from core.database import get_or_create_global_user_profile, get_or_create_user_local_data
 from core.utils import try_send, require_travel_check
-from core.icons import ICON_BANK, ICON_MONEY_BAG, ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO, ICON_TIEN_SACH
+from core.icons import ICON_BANK, ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_TIEN_SACH
 
 logger = logging.getLogger(__name__)
 
 class WithdrawCommandCog(commands.Cog, name="Withdraw Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("WithdrawCommandCog (v4 - Refactored) initialized.")
+        logger.info("WithdrawCommandCog (SQLite Ready) initialized.")
 
     @commands.command(name='withdraw', aliases=['wd'])
     @commands.guild_only()
     @require_travel_check
     async def withdraw(self, ctx: commands.Context, amount_str: str):
-        """Rút tiền từ Bank về Ví Local (sẽ được cộng vào Tiền Sạch)."""
+        """Rút tiền từ Bank về Ví Local (Tiền Sạch)."""
         author_id = ctx.author.id
         guild_id = ctx.guild.id
         
         try:
-            economy_data = self.bot.economy_data
-            global_profile = get_or_create_global_user_profile(economy_data, author_id)
-            local_data = get_or_create_user_local_data(global_profile, guild_id)
-            bank_balance = global_profile.get("bank_balance", 0)
+            global_profile = self.bot.db.get_or_create_global_user_profile(author_id)
+            local_data = self.bot.db.get_or_create_user_local_data(author_id, guild_id)
             
-            # --- Xử lý số tiền muốn rút ---
-            amount_to_withdraw = 0
+            bank_balance = global_profile['bank_balance']
+            earned_balance = local_data['local_balance_earned']
+
             if amount_str.lower() == 'all':
                 amount_to_withdraw = bank_balance
             else:
@@ -39,35 +36,31 @@ class WithdrawCommandCog(commands.Cog, name="Withdraw Command"):
                     await try_send(ctx, content=f"{ICON_WARNING} Vui lòng nhập một số tiền hợp lệ hoặc 'all'.")
                     return
 
-            # --- Kiểm tra điều kiện ---
             if amount_to_withdraw <= 0:
                 await try_send(ctx, content=f"{ICON_ERROR} Số tiền rút phải lớn hơn 0.")
                 return
 
             if bank_balance < amount_to_withdraw:
-                await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền trong Bank. {ICON_BANK} Bank của bạn có: **{bank_balance:,}**")
+                await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền trong Bank. Bạn có: **{bank_balance:,}**")
                 return
 
-            # --- Thực hiện giao dịch ---
-            global_profile["bank_balance"] -= amount_to_withdraw
-            local_data["local_balance"]["earned"] += amount_to_withdraw
+            # Thực hiện giao dịch
+            new_bank_balance = bank_balance - amount_to_withdraw
+            new_earned_balance = earned_balance + amount_to_withdraw
+            self.bot.db.update_balance(author_id, None, 'bank_balance', new_bank_balance)
+            self.bot.db.update_balance(author_id, guild_id, 'local_balance_earned', new_earned_balance)
             
-            logger.info(f"User {author_id} tại guild {guild_id} đã withdraw {amount_to_withdraw} từ Bank về Ví Local (earned).")
-
-            # Gửi thông báo thành công
-            new_bank_balance = global_profile["bank_balance"]
-            new_earned_balance = local_data["local_balance"]["earned"]
+            logger.info(f"User {author_id} tại guild {guild_id} đã withdraw {amount_to_withdraw} từ Bank.")
             await try_send(
                 ctx,
                 content=(
-                    f"{ICON_SUCCESS} Rút tiền thành công (miễn phí)!\n"
-                    f"  - Đã rút từ Bank: **{amount_to_withdraw:,}** {ICON_BANK}\n"
+                    f"{ICON_SUCCESS} Rút tiền thành công!\n"
+                    f"- Đã rút từ Bank: **{amount_to_withdraw:,}** {ICON_BANK}\n"
                     f"Số dư mới:\n"
                     f"  - {ICON_BANK} Bank: **{new_bank_balance:,}**\n"
-                    f"  - {ICON_TIEN_SACH} Tiền Sạch (trong Ví Local): **{new_earned_balance:,}**"
+                    f"  - {ICON_TIEN_SACH} Tiền Sạch (Ví Local): **{new_earned_balance:,}**"
                 )
             )
-
         except Exception as e:
             logger.error(f"Lỗi trong lệnh 'withdraw' cho user {author_id}: {e}", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi bạn rút tiền.")
