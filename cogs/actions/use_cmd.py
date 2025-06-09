@@ -15,12 +15,13 @@ class UseCommandCog(commands.Cog, name="Use Command"):
     @commands.command(name='use')
     @commands.guild_only()
     async def use(self, ctx: commands.Context, item_id: str):
+        """Sử dụng một vật phẩm tiêu thụ từ túi đồ của bạn."""
         author_id = ctx.author.id
         guild_id = ctx.guild.id
         item_id_to_use = item_id.lower().strip()
 
         try:
-            # Tìm vật phẩm trong túi đồ của người dùng
+            # Tìm vật phẩm trong túi đồ của người dùng bằng hàm mới
             item_to_remove = self.bot.db.find_item_in_inventory(author_id, item_id_to_use, guild_id)
             
             if not item_to_remove:
@@ -43,11 +44,15 @@ class UseCommandCog(commands.Cog, name="Use Command"):
             original_value = local_data[stat_to_change]
             new_value = original_value + value_to_add
             
-            # Gọi hàm cập nhật chỉ số
-            args = {'user_id': author_id, 'guild_id': guild_id, stat_to_change: new_value}
-            self.bot.db.update_user_stats(**args)
+            # Tạo một dictionary để truyền tham số động cho hàm update_user_stats
+            update_args = {
+                'user_id': author_id, 
+                'guild_id': guild_id, 
+                stat_to_change: new_value
+            }
+            self.bot.db.update_user_stats(**update_args)
             
-            # Xóa vật phẩm đã dùng
+            # Xóa vật phẩm đã dùng bằng ID duy nhất của nó
             self.bot.db.remove_item_from_inventory(item_to_remove['inventory_id'])
             
             stat_name_vn = {"health": "Máu", "hunger": "Độ no", "energy": "Năng lượng"}
