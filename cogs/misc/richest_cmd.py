@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class RichestCommandCog(commands.Cog, name="Richest Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.debug("RichestCommandCog (Refactored) initialized.")
+        logger.debug("RichestCommandCog (Optimized) initialized.")
 
     @commands.command(name='richest')
     @commands.guild_only()
@@ -64,7 +64,10 @@ class RichestCommandCog(commands.Cog, name="Richest Command"):
         except Exception as e:
             logger.error(f"Lỗi không mong muốn trong lệnh 'richest': {e}", exc_info=True)
             if ctx.guild:
-                await ctx.message.remove_reaction("⏳", self.bot.user)
+                try:
+                    await ctx.message.remove_reaction("⏳", self.bot.user)
+                except nextcord.errors.NotFound:
+                    pass # Bỏ qua nếu tin nhắn đã bị xóa
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra, vui lòng thử lại sau.")
 
 def setup(bot: commands.Bot):
