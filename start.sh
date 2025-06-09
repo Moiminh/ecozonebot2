@@ -1,25 +1,30 @@
 #!/bin/bash
 
-# Hàm này sẽ được gọi khi script bị dừng (ví dụ: khi bạn nhấn Ctrl+C)
+# Hàm cleanup không thay đổi
 cleanup() {
     echo -e "\n[+] Đã nhận tín hiệu dừng từ ngrok hoặc người dùng."
-    # Kiểm tra xem BOT_PID có được đặt không
     if [ ! -z "$BOT_PID" ]; then
         echo "[+] Đang dừng tiến trình của bot (PID: $BOT_PID)..."
-        # Gửi tín hiệu SIGINT (giống như Ctrl+C) để bot có thể lưu dữ liệu lần cuối
         kill -SIGINT $BOT_PID
     fi
     echo "[+] Hoàn tất. Tạm biệt!"
     exit
 }
 
-# Đặt "bẫy": khi script nhận tín hiệu INT (Ctrl+C) hoặc EXIT, nó sẽ gọi hàm cleanup
 trap cleanup INT EXIT
 
 # --- Bắt đầu script chính ---
-echo "[+] Đang khởi động bot Discord và dashboard Flask ở chế độ nền..."
 
-# Chạy bot và lấy Process ID (PID) của nó
+# [THAY ĐỔI] Đọc các biến từ file .env
+if [ -f .env ]; then
+    echo "[+] Đang đọc cấu hình từ file .env..."
+    # Lọc ra các dòng không phải là comment và export chúng thành biến môi trường
+    export $(grep -v '^#' .env | xargs)
+else
+    echo "[!] Cảnh báo: Không tìm thấy file .env."
+fi
+
+echo "[+] Đang khởi động bot Discord và dashboard Flask ở chế độ nền..."
 python main.py &
 BOT_PID=$!
 
@@ -30,7 +35,12 @@ sleep 2
 echo "[+] Đang khởi động ngrok cho cổng 8080..."
 echo "[!] Nhấn Ctrl+C để dừng cả ngrok và bot."
 
-# Chạy ngrok ở chế độ foreground. Script sẽ dừng ở đây cho đến khi ngrok bị tắt.
-# Thay YOUR_AUTH_TOKEN bằng token của bạn nếu cần
-# ngrok http 8080 --authtoken=YOUR_AUTH_TOKEN
-ngrok http 8080
+# [THAY ĐỔI] Sử dụng biến NGROK_AUTH_TOKEN đã được đọc từ file .env
+# Nếu biến NGROK_AUTH_TOKEN có tồn tại, sử dụng nó. Nếu không, chạy ngrok không có token.
+if [ ! -z "$NGROK_AUTH_TOKEN" ]; then
+    echo "[+] Tìm thấy NGROK_AUTH_TOKEN, đang sử dụng để xác thực."
+    ngrok http 8080 --authtoken=$NGROK_AUTH_TOKEN
+else
+    echo "[!] Không tìm thấy NGROK_AUTH_TOKEN, chạy ngrok không xác thực."
+    ngrok http 8080
+fi
