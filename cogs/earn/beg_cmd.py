@@ -5,10 +5,11 @@ import random
 from datetime import datetime
 import logging
 
-from core.database import get_or_create_global_user_profile
-from core.utils import try_send, get_time_left_str
-from core.config import BEG_COOLDOWN, CURRENCY_SYMBOL
-from core.icons import ICON_LOADING, ICON_GIFT, ICON_MONEY_BAG, ICON_WARNING, ICON_INFO, ICON_ERROR
+from core.database import get_or_create_global_user_profile, get_or_create_user_local_data
+from core.utils import try_send, get_time_left_str, require_travel_check
+from core.config import BEG_COOLDOWN
+# [SỬA] Import ICON_ECOIN thay cho CURRENCY_SYMBOL
+from core.icons import ICON_LOADING, ICON_GIFT, ICON_MONEY_BAG, ICON_WARNING, ICON_INFO, ICON_ERROR, ICON_ECOIN
 from core.travel_manager import handle_travel_event
 
 logger = logging.getLogger(__name__)
@@ -20,19 +21,16 @@ class BegCommandCog(commands.Cog, name="Beg Command"):
 
     @commands.command(name='beg', aliases=['b'])
     @commands.guild_only()
+    # [THÊM] Thêm decorator để nhất quán với các lệnh guild_only khác
+    @require_travel_check
     async def beg(self, ctx: commands.Context):
         author_id = ctx.author.id
-        guild_id = ctx.guild.id
-
-        # [SỬA] Sử dụng cache từ bot
+        
+        # [SỬA] Dùng cache của bot
         economy_data = self.bot.economy_data
         user_profile = get_or_create_global_user_profile(economy_data, author_id)
-
-        if user_profile.get("last_active_guild_id") != guild_id:
-            await handle_travel_event(ctx, self.bot)
-            return # Dừng lệnh sau khi travel
-        user_profile["last_active_guild_id"] = guild_id
-
+        # Lệnh beg tác động vào global_balance, không cần local_data
+        
         time_left = get_time_left_str(user_profile.get("cooldowns", {}).get("beg", 0), BEG_COOLDOWN)
         if time_left:
             await try_send(ctx, content=f"{ICON_LOADING} Đừng xin liên tục thế chứ! Lệnh `beg` chờ: **{time_left}**.")
@@ -40,16 +38,16 @@ class BegCommandCog(commands.Cog, name="Beg Command"):
 
         user_profile.setdefault("cooldowns", {})["beg"] = datetime.now().timestamp()
 
+        # Lệnh beg hiện đang cộng tiền vào bank_balance (ví toàn cục)
+        # Nếu muốn cộng vào ví local, bạn cần thay đổi logic ở đây
         if random.random() < 0.7: 
             earnings = random.randint(10, 100)
-            user_profile["global_balance"] = user_profile.get("global_balance", 0) + earnings
-
-            await try_send(ctx, content=f"{ICON_GIFT} Một người tốt bụng đã cho {ctx.author.mention} **{earnings:,}** {CURRENCY_SYMBOL}! {ICON_MONEY_BAG} Ví Toàn Cục: **{user_profile['global_balance']:,}**")
+            user_profile["bank_balance"] = user_profile.get("bank_balance", 0) + earnings
+            
+            # [SỬA] Thay CURRENCY_SYMBOL bằng ICON_ECOIN
+            await try_send(ctx, content=f"{ICON_GIFT} Một người tốt bụng đã cho {ctx.author.mention} **{earnings:,}** {ICON_ECOIN}! Số dư Bank của bạn giờ là: **{user_profile['bank_balance']:,}**")
         else:
             await try_send(ctx, content=f"{ICON_WARNING} Không ai cho {ctx.author.mention} tiền cả. Thử lại vận may sau nhé! 😢")
             
-        # [XÓA] Không cần save thủ công
-        # save_economy_data(economy_data)
-
 def setup(bot: commands.Bot):
     bot.add_cog(BegCommandCog(bot))
