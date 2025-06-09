@@ -35,6 +35,7 @@ if __name__ == "__main__":
 
     # [NÂNG CẤP] Logic "CÔNG TẮC" DATABASE
     DB_TYPE = os.getenv("DATABASE_TYPE", "json").lower()
+    bot.db_type = DB_TYPE
     
     if DB_TYPE == 'sqlite':
         main_logger.info("Phát hiện cấu hình 'sqlite'. Bot sẽ chạy với CSDL SQLite.")
