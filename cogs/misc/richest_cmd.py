@@ -34,20 +34,19 @@ class RichestCommandCog(commands.Cog, name="Richest Command"):
             for user_id in guild_member_ids:
                 user_profile = all_users_data.get(user_id)
 
-                if not user_profile:
+                if not user_profile or not isinstance(user_profile, dict):
                     continue
 
-                if isinstance(user_profile, dict):
-                    server_data = user_profile.get("server_data", {}).get(str(ctx.guild.id))
-                    if not server_data:
-                        continue
+                server_data = user_profile.get("server_data", {}).get(str(ctx.guild.id))
+                if not server_data:
+                    continue
 
-                    local_balance_dict = server_data.get("local_balance", {})
-                    total_local_wealth = local_balance_dict.get("earned", 0) + local_balance_dict.get("adadd", 0)
-                    
-                    if total_local_wealth > max_local_wealth:
-                        max_local_wealth = total_local_wealth
-                        richest_user_id = user_id
+                local_balance_dict = server_data.get("local_balance", {})
+                total_local_wealth = local_balance_dict.get("earned", 0) + local_balance_dict.get("adadd", 0)
+                
+                if total_local_wealth > max_local_wealth:
+                    max_local_wealth = total_local_wealth
+                    richest_user_id = user_id
             
             await ctx.message.remove_reaction("⏳", self.bot.user)
 
@@ -61,11 +60,12 @@ class RichestCommandCog(commands.Cog, name="Richest Command"):
             except Exception as e:
                 logger.error(f"Lỗi khi fetch user ID {richest_user_id} cho lệnh 'richest':", exc_info=True)
                 await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi tìm người giàu nhất.")
+
         except Exception as e:
             logger.error(f"Lỗi không mong muốn trong lệnh 'richest': {e}", exc_info=True)
-            await ctx.message.remove_reaction("⏳", self.bot.user)
+            if ctx.guild:
+                await ctx.message.remove_reaction("⏳", self.bot.user)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra, vui lòng thử lại sau.")
-
 
 def setup(bot: commands.Bot):
     bot.add_cog(RichestCommandCog(bot))
