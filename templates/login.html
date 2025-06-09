@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <title>Đăng nhập Dashboard</title>
+    <style>
+        body { font-family: sans-serif; background: #2f2f2f; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-box { background: #444; padding: 2em; border-radius: 10px; box-shadow: 0 0 20px #00000088; text-align: center; }
+        input[type=text] { padding: 10px; border-radius: 5px; border: 1px solid #666; background: #555; color: #fff; }
+        input[type=submit] { padding: 10px 20px; border: none; border-radius: 5px; background: #00ffcc; color: #000; font-weight: bold; cursor: pointer; }
+        .flashes { list-style: none; padding: 0; margin-top: 1em; color: #ff8a8a; }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h1>Đăng nhập Dashboard</h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <ul class=flashes>
+            {% for category, message in messages %}
+              <li class="{{ category }}">{{ message }}</li>
+            {% endfor %}
+            </ul>
+          {% endif %}
+        {% endwith %}
+        <form method=post>
+          <p>User ID: <input type=text name=user_id autocomplete="off"></p>
+          <p><input type=submit value=Login></p>
+        </form>
+    </div>
+</body>
+</html>
