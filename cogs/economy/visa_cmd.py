@@ -27,7 +27,6 @@ class VisaCommandCog(commands.Cog, name="Visa Commands"):
     async def buy_visa(self, ctx: commands.Context, visa_id_str: str):
         """Mua một thẻ Visa mới bằng tiền từ Bank trung tâm của bạn."""
         item_id_to_buy = visa_id_str.lower().strip()
-        # [SỬA] Sử dụng item definitions từ cache
         all_items = self.bot.item_definitions
 
         if item_id_to_buy not in all_items or all_items[item_id_to_buy].get("type") != "visa":
@@ -35,7 +34,6 @@ class VisaCommandCog(commands.Cog, name="Visa Commands"):
             return
 
         try:
-            # [SỬA] Sử dụng cache
             economy_data = self.bot.economy_data
             global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
             
@@ -48,12 +46,14 @@ class VisaCommandCog(commands.Cog, name="Visa Commands"):
 
             global_profile["bank_balance"] -= price
             
+            # [THÊM] Lưu cả tên server để đảm bảo dữ liệu bền vững
             new_visa_item = {
                 "item_id": item_id_to_buy,
                 "unique_id": str(uuid.uuid4())[:8],
                 "type": "visa",
                 "visa_type": visa_details["visa_type"],
                 "source_guild_id": ctx.guild.id,
+                "source_guild_name": ctx.guild.name, # Thêm dòng này
                 "balance": 0,
                 "capacity": visa_details["capacity"]
             }
@@ -72,7 +72,6 @@ class VisaCommandCog(commands.Cog, name="Visa Commands"):
     async def visa_balance(self, ctx: commands.Context):
         """Xem số dư của tất cả các thẻ Visa bạn đang sở hữu."""
         try:
-            # [SỬA] Sử dụng cache
             economy_data = self.bot.economy_data
             global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
             inventory_global = global_profile.get("inventory_global", [])
@@ -86,17 +85,18 @@ class VisaCommandCog(commands.Cog, name="Visa Commands"):
             embed = nextcord.Embed(title=f"💳 Các Thẻ Visa của {ctx.author.name}", color=nextcord.Color.dark_purple())
             embed.set_footer(text=f"Dùng {COMMAND_PREFIX}visa topup <ID_thẻ> <số_tiền> để nạp tiền.")
             
-            # [SỬA] Sử dụng item definitions từ cache
             all_items = self.bot.item_definitions
             for visa in visa_items:
                 visa_icon = ICON_ECOBANK if visa.get("visa_type") == "local" else ICON_ECOVISA
                 visa_name = all_items.get(visa['item_id'], {}).get('name', 'Visa không xác định')
                 
-                source_server_name = "Toàn cầu"
+                # [SỬA] Ưu tiên lấy tên đã lưu, cập nhật nếu bot còn trong server
+                source_server_name = visa.get("source_guild_name", "Không rõ")
                 if source_guild_id := visa.get("source_guild_id"):
                     source_guild = self.bot.get_guild(source_guild_id)
                     if source_guild:
                         source_server_name = source_guild.name
+                        visa["source_guild_name"] = source_server_name
                 
                 embed.add_field(
                     name=f"{visa_icon} {visa_name} (ID: `{visa.get('unique_id')}`)",
