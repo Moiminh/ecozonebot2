@@ -1,0 +1,29 @@
+2025-06-09 15:48:46 [INFO    ] [cogs.admin.addmoney_cmd            ] AddMoneyCommandCog (v3 - Refactored) initialized.
+2025-06-09 15:48:46 [INFO    ] [cogs.admin.auto_cmd                ] AutoCommandCog (v2 - Refactored) initialized.
+2025-06-09 15:48:46 [INFO    ] [cogs.admin.removemoney_cmd         ] RemoveMoneyCommandCog (v3 - Refactored) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.earn.rob_cmd                  ] RobCommandCog (v4 - Refactored) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.economy.balance_cmd           ] BalanceCommandCog (v3 - Refactored) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.economy.bank_cmd              ] BankCommandCog (Refactored) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.economy.transfer_cmd          ] TransferCommandCog (v3 - Refactored) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.economy.withdraw_cmd          ] WithdrawCommandCog (v4 - Refactored) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.economy.visa_cmd              ] VisaCommandCog (v3 - Refactored) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.games.coinflip_cmd            ] CoinflipCommandCog (v5 - Refactored & Patched) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.games.dice_cmd                ] DiceCommandCog (v6 - Refactored & Patched) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.games.slots_cmd               ] SlotsCommandCog (v6 - Refactored & Patched) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.misc.globallb_cmd             ] ℹ️ GlobalLeaderboardCog (Refactored) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.misc.dashboard_cmd            ] DashboardCommandCog (Refactored) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.moderation.access_test_cmd    ] ℹ️ ModeratorAccessTestCog initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.moderation.manage_mods_cmd    ] ManageModeratorsCog (v2) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.moderation.mod_slash_cmds     ] ℹ️ ModSlashCommandsCog initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.moderation.mod_tools_slash    ] ModToolsSlashCog (v3 - Refactored) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.shop.buy_cmd                  ] BuyCommandCog (v4 - Refactored) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.shop.inventory_cmd            ] InventoryCommandCog (v3 - Refactored) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.shop.sell_cmd                 ] SellCommandCog (v4 - Refactored) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.shop.shop_cmd                 ] ShopDisplayCommandCog (v3 - Dynamic Items) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.tasks.dynamic_shop_task       ] DynamicShopTaskCog (v3 - Refactored) initialized and task started.
+2025-06-09 15:48:47 [INFO    ] [cogs.tasks.survival_task           ] SurvivalTaskCog (v2 - Refactored) initialized and stat decay task started.
+2025-06-09 15:48:47 [INFO    ] [cogs.tasks.autosave_task           ] AutoSaveTaskCog initialized and autosave task started.
+2025-06-09 15:48:47 [INFO    ] [cogs.actions.use_cmd               ] UseCommandCog (v2 - Refactored) initialized.
+2025-06-09 15:48:47 [INFO    ] [cogs.tasks.dynamic_shop_task       ] DynamicShopTaskCog unloaded and task cancelled.
+2025-06-09 15:48:47 [INFO    ] [cogs.tasks.survival_task           ] SurvivalTaskCog unloaded and stat decay task cancelled.
+2025-06-09 15:48:47 [INFO    ] [cogs.tasks.autosave_task           ] Auto-saving data before unloading cog...

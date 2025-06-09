@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <title>EconZone Dashboard</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        h1, h2 { color: #333; }
+        .flashes { list-style: none; padding: 0; }
+        .flashes li { padding: 0.7em; margin-bottom: 1em; border-radius: 5px; }
+        .flashes .success { background: #90ee90; }
+        .flashes .danger { background: #f08080; }
+        .flashes .info { background: #add8e6; }
+        pre { background: #eee; padding: 1em; border: 1px solid #ccc; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>EconZone Dashboard</h1>
+    <p>Xin chào, <strong>{{ session['user_id'] }}</strong>!</p>
+    <p>Trạng thái CSDL hiện tại của Bot: <strong>{{ current_db_type.upper() }}</strong></p>
+    <p>Tổng số người dùng trong CSDL: <strong>{{ user_count }}</strong></p>
+    
+    <hr>
+    
+    <h2>Hành động</h2>
+    <form action="/migrate" method="post" onsubmit="return confirm('Cảnh báo: Hành động này sẽ đọc file JSON và ghi đè vào CSDL SQLite. Bạn có chắc muốn tiếp tục không?');">
+      <button type="submit">Chạy Script Di chuyển từ JSON sang SQLite</button>
+    </form>
+    
+    <hr>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class=flashes>
+        {% for category, message in messages %}
+          <li class="{{ category }}">{{ message | safe }}</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+    
+    <hr>
+    
+    <h2>Top 10 người dùng giàu nhất (Bank)</h2>
+    <ul>
+    {% for user in top_users %}
+      <li>User ID: {{ user['user_id'] }} - Bank: {{ "{:,}".format(user['bank_balance']) }}</li>
+    {% else %}
+      <li>Chưa có dữ liệu để hiển thị.</li>
+    {% endfor %}
+    </ul>
+</body>
+</html>

@@ -1,71 +1,111 @@
 {
-  "users": {
-    "USER_ID_EXAMPLE": {
-      "global_balance": 0,
-      "inventory_global": [],
-      "level_global": 1,
-      "xp_global": 0,
-      "rebirths": 0,
-      "preferred_language": "vi",
-      "last_work_global": 0,
-      "last_daily_global": 0,
-      "last_beg_global": 0,
-      "last_rob_global": 0,
-      "last_crime_global": 0,
-      "last_fish_global": 0,
-      "last_slots_global": 0,
-      "last_cf_global": 0,
-      "last_dice_global": 0,
-      "server_data": {
-        "GUILD_ID_EXAMPLE": {
-          "local_balance": {
-            "earned": 100,
-            "admin_added": 0
-          },
-          "inventory_local": [],
-          "level_local": 1,
-          "xp_local": 0,
-          "last_work_local": 0,
-          "last_daily_local": 0,
-          "local_shop_stock": {
-            "potion": {
-              "current_stock": 5,
-              "max_stock": 10,
-              "base_price": 500
+    "users": {
+        "USER_ID_EXAMPLE": {
+            "global_balance": 0,
+            "inventory_global": [],
+            "level_global": 1,
+            "xp_global": 0,
+            "rebirths": 0,
+            "preferred_language": "vi",
+            "last_work_global": 0,
+            "last_daily_global": 0,
+            "last_beg_global": 0,
+            "last_rob_global": 0,
+            "last_crime_global": 0,
+            "last_fish_global": 0,
+            "last_slots_global": 0,
+            "last_cf_global": 0,
+            "last_dice_global": 0,
+            "server_data": {
+                "GUILD_ID_EXAMPLE": {
+                    "local_balance": {
+                        "earned": 100,
+                        "admin_added": 0
+                    },
+                    "inventory_local": [],
+                    "level_local": 1,
+                    "xp_local": 0,
+                    "last_work_local": 0,
+                    "last_daily_local": 0,
+                    "local_shop_stock": {
+                        "potion": {
+                            "current_stock": 5,
+                            "max_stock": 10,
+                            "base_price": 500
+                        }
+                    }
+                }
             }
-          }
         }
-      }
-    }
-  },
-  "guild_configs": {
-    "GUILD_ID_EXAMPLE": {
-      "bare_command_active_channels": [],
-      "muted_channels": [],
-      "active_events": {}
-    }
-  },
-  "global_shop_stock": {
-    "laptop": {
-      "current_stock": 10,
-      "max_stock": 10,
-      "base_price": 1000
-    }
-  },
-  "global_item_definitions": {
-    "laptop": {
-      "rarity": "common",
-      "category": "tool",
-      "usable": true
     },
-    "potion": {
-      "rarity": "uncommon",
-      "category": "consumable",
-      "usable": true
+    "guild_configs": {
+        "GUILD_ID_EXAMPLE": {
+            "bare_command_active_channels": [],
+            "muted_channels": [],
+            "active_events": {}
+        }
+    },
+    "global_shop_stock": {
+        "laptop": {
+            "current_stock": 10,
+            "max_stock": 10,
+            "base_price": 1000
+        },
+        "fishing_rod": {
+            "current_stock": 28,
+            "max_stock": 30,
+            "base_price": 500
+        },
+        "banh_mi": {
+            "current_stock": 20,
+            "max_stock": 20,
+            "base_price": 50
+        },
+        "nuoc_tang_luc": {
+            "current_stock": 20,
+            "max_stock": 20,
+            "base_price": 75
+        },
+        "hop_cuu_thuong": {
+            "current_stock": 20,
+            "max_stock": 20,
+            "base_price": 200
+        },
+        "ecobank_small": {
+            "current_stock": 20,
+            "max_stock": 20,
+            "base_price": 1000
+        },
+        "ecobank_medium": {
+            "current_stock": 20,
+            "max_stock": 20,
+            "base_price": 5000
+        },
+        "ecovisa_standard": {
+            "current_stock": 20,
+            "max_stock": 20,
+            "base_price": 25000
+        },
+        "backpack_small": {
+            "current_stock": 20,
+            "max_stock": 20,
+            "base_price": 50000
+        }
+    },
+    "global_item_definitions": {
+        "laptop": {
+            "rarity": "common",
+            "category": "tool",
+            "usable": true
+        },
+        "potion": {
+            "rarity": "uncommon",
+            "category": "consumable",
+            "usable": true
+        }
+    },
+    "bot_metadata": {
+        "data_structure_version": "Ecoworld_LoGlo_v1.0",
+        "notes": "Hệ thống kinh tế Ecoworld với Ví Local (earned/admin-added) và Ví Global (BANK)."
     }
-  },
-  "bot_metadata": {
-    "data_structure_version": "Ecoworld_LoGlo_v1.0",
-    "notes": "Hệ thống kinh tế Ecoworld với Ví Local (earned/admin-added) và Ví Global (BANK)."
-  }
 }

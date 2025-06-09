@@ -1,0 +1,144 @@
+2025-06-09 16:01:28 [INFO    ] [BotSetup                           ] Discord Webhook logging handler đã được thiết lập.
+2025-06-09 16:01:28 [INFO    ] [BotSetup                           ] Hệ thống Logging đã được thiết lập (hoặc cố gắng thiết lập).
+2025-06-09 16:01:28 [DEBUG   ] [BotSetup                           ] General logs sẽ được ghi vào: logs/bot_general_2025-06-09_16-01-28.log
+2025-06-09 16:01:28 [DEBUG   ] [BotSetup                           ] Player action logs (INFO từ cogs) sẽ được ghi vào: logs/player_actions_2025-06-09_16-01-28.log
+2025-06-09 16:01:28 [INFO    ] [__main__                           ] ==================================================
+2025-06-09 16:01:28 [INFO    ] [__main__                           ] Bắt đầu khởi chạy Bot Kinh Tế! (main.py)
+2025-06-09 16:01:28 [INFO    ] [__main__                           ] ==================================================
+2025-06-09 16:01:28 [INFO    ] [__main__                           ] Đang tải dữ liệu kinh tế và vật phẩm vào bộ nhớ cache...
+2025-06-09 16:01:28 [INFO    ] [__main__                           ] Tải dữ liệu kinh tế và vật phẩm vào cache thành công.
+2025-06-09 16:01:28 [INFO    ] [__main__                           ] BOT_TOKEN đã được tải thành công.
+2025-06-09 16:01:28 [INFO    ] [__main__                           ] Đang kiểm tra và tải các Cogs...
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ] --------------------------------------------------
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ] Đang tải các Cogs...
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.test_slash_cog
+2025-06-09 16:01:28 [INFO    ] [cogs.admin.addmoney_cmd            ] AddMoneyCommandCog (v3 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.admin.addmoney_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.admin.auto_cmd                ] AutoCommandCog (v2 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.admin.auto_cmd
+2025-06-09 16:01:28 [DEBUG   ] [cogs.admin.mutebot_cmd             ] MuteBotCommandCog initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.admin.mutebot_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.admin.removemoney_cmd         ] RemoveMoneyCommandCog (v3 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.admin.removemoney_cmd
+2025-06-09 16:01:28 [DEBUG   ] [cogs.admin.unmutebot_cmd           ] UnmuteBotCommandCog (v2 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.admin.unmutebot_cmd
+2025-06-09 16:01:28 [ERROR   ] [core.bot                           ]   [!] LỖI khi tải Cog cogs.earn.beg_cmd:
+Traceback (most recent call last):
+  File "/data/data/com.termux/files/usr/lib/python3.12/site-packages/nextcord/ext/commands/bot.py", line 651, in _load_from_module_spec
+    spec.loader.exec_module(lib)  # type: ignore
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/data/data/com.termux/files/home/econzonebot/cogs/earn/beg_cmd.py", line 10, in <module>
+    from core.config import BEG_COOLDOWN, CURRENCY_SYMBOL
+ImportError: cannot import name 'CURRENCY_SYMBOL' from 'core.config' (/data/data/com.termux/files/home/econzonebot/core/config.py)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/data/data/com.termux/files/home/econzonebot/core/bot.py", line 135, in load_all_cogs
+    bot.load_extension(extension_path)
+  File "/data/data/com.termux/files/usr/lib/python3.12/site-packages/nextcord/ext/commands/bot.py", line 774, in load_extension
+    self._load_from_module_spec(spec, name, extras=extras)
+  File "/data/data/com.termux/files/usr/lib/python3.12/site-packages/nextcord/ext/commands/bot.py", line 654, in _load_from_module_spec
+    raise errors.ExtensionFailed(key, e) from e
+nextcord.ext.commands.errors.ExtensionFailed: Extension 'cogs.earn.beg_cmd' raised an error: ImportError: cannot import name 'CURRENCY_SYMBOL' from 'core.config' (/data/data/com.termux/files/home/econzonebot/core/config.py)
+2025-06-09 16:01:28 [INFO    ] [cogs.earn.crime_cmd                ] CrimeCommandCog (v4 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.earn.crime_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.earn.daily_cmd                ] DailyCommandCog (v3 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.earn.daily_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.earn.fish_cmd                 ] FishCommandCog (v4 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.earn.fish_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.earn.rob_cmd                  ] RobCommandCog (v4 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.earn.rob_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.earn.work_cmd                 ] WorkCommandCog (v4 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.earn.work_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.economy.balance_cmd           ] BalanceCommandCog (v3 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.economy.balance_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.economy.bank_cmd              ] BankCommandCog (Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.economy.bank_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.economy.deposit_cmd           ] DepositCommandCog (v5 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.economy.deposit_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.economy.transfer_cmd          ] TransferCommandCog (v3 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.economy.transfer_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.economy.withdraw_cmd          ] WithdrawCommandCog (v4 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.economy.withdraw_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.economy.launder_cmd           ] LaunderCommandCog (v3 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.economy.launder_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.economy.visa_cmd              ] VisaCommandCog (v3 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.economy.visa_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.games.coinflip_cmd            ] CoinflipCommandCog (v5 - Refactored & Patched) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.games.coinflip_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.games.dice_cmd                ] DiceCommandCog (v6 - Refactored & Patched) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.games.dice_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.games.slots_cmd               ] SlotsCommandCog (v6 - Refactored & Patched) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.games.slots_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.misc.globallb_cmd             ] ℹ️ GlobalLeaderboardCog (Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.misc.globallb_cmd
+2025-06-09 16:01:28 [DEBUG   ] [cogs.misc.help_slash_cmd           ] MenuSlashCommandCog initialized (command is /menu).
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.misc.help_slash_cmd
+2025-06-09 16:01:28 [DEBUG   ] [cogs.misc.leaderboard_cmd          ] LeaderboardCommandCog (Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.misc.leaderboard_cmd
+2025-06-09 16:01:28 [DEBUG   ] [cogs.misc.richest_cmd              ] RichestCommandCog (Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.misc.richest_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.misc.dashboard_cmd            ] DashboardCommandCog (Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.misc.dashboard_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.misc.howtoplay_cmd            ] HowToPlayCommandCog (v2 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.misc.howtoplay_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.moderation.access_test_cmd    ] ℹ️ ModeratorAccessTestCog initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.moderation.access_test_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.moderation.manage_mods_cmd    ] ManageModeratorsCog (v2) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.moderation.manage_mods_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.moderation.mod_slash_cmds     ] ℹ️ ModSlashCommandsCog initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.moderation.mod_slash_cmds
+2025-06-09 16:01:28 [INFO    ] [cogs.moderation.mod_tools_slash    ] ModToolsSlashCog (v3 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.moderation.mod_tools_slash
+2025-06-09 16:01:28 [INFO    ] [cogs.shop.buy_cmd                  ] BuyCommandCog (v4 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.shop.buy_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.shop.inventory_cmd            ] InventoryCommandCog (v3 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.shop.inventory_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.shop.sell_cmd                 ] SellCommandCog (v4 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.shop.sell_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.shop.shop_cmd                 ] ShopDisplayCommandCog (v3 - Dynamic Items) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.shop.shop_cmd
+2025-06-09 16:01:28 [INFO    ] [cogs.tasks.dynamic_shop_task       ] DynamicShopTaskCog (v3 - Refactored) initialized and task started.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.tasks.dynamic_shop_task
+2025-06-09 16:01:28 [INFO    ] [cogs.tasks.survival_task           ] SurvivalTaskCog (v2 - Refactored) initialized and stat decay task started.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.tasks.survival_task
+2025-06-09 16:01:28 [INFO    ] [cogs.tasks.autosave_task           ] AutoSaveTaskCog initialized and autosave task started.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.tasks.autosave_task
+2025-06-09 16:01:28 [INFO    ] [cogs.actions.use_cmd               ] UseCommandCog (v2 - Refactored) initialized.
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ]   [+] Đã tải thành công Cog: cogs.actions.use_cmd
+2025-06-09 16:01:28 [WARNING ] [core.bot                           ]   [~] Bỏ qua việc tải Cog AI do bị vô hiệu hóa: cogs.ai.assistant_cog
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ] --- Hoàn tất! Đã tải 39 Cogs. ---
+2025-06-09 16:01:28 [INFO    ] [core.bot                           ] --------------------------------------------------
+2025-06-09 16:01:28 [INFO    ] [__main__                           ] Đang cố gắng kết nối với Discord...
+2025-06-09 16:01:28 [DEBUG   ] [nextcord.client                    ] Registered SIGTERM signal handler.
+2025-06-09 16:01:28 [INFO    ] [nextcord.client                    ] logging in using static token
+2025-06-09 16:01:28 [DEBUG   ] [nextcord.http                      ] Creating global ratelimit for auth Bot MTM3ODky[redacted] with max per second 50.
+2025-06-09 16:01:28 [DEBUG   ] [nextcord.http                      ] Making URL rate limit for GET None:None:/users/@me Bot MTM3ODky[redacted]
+2025-06-09 16:01:28 [DEBUG   ] [nextcord.http                      ] Bucket Global Bot MTM3ODky[redacted]: Continuing with request.
+2025-06-09 16:01:28 [DEBUG   ] [nextcord.http                      ] Bucket None: Continuing with request.
+2025-06-09 16:01:28 [DEBUG   ] [nextcord.http                      ] Starting ratelimit shedding loop with sleep_seconds 300 and threshold 600.
+2025-06-09 16:01:28 [DEBUG   ] [nextcord.http                      ] Allowing bucket None to be garbage collected.
+2025-06-09 16:01:28 [INFO    ] [nextcord.http                      ] Allowed 1 rate limits to be garbage collected.
+2025-06-09 16:01:28 [DEBUG   ] [nextcord.http                      ] Bucket Global Bot MTM3ODky[redacted]: Resetting after 1.0 seconds.
+2025-06-09 16:01:29 [DEBUG   ] [nextcord.http                      ] GET https://discord.com/api/v10/users/@me with None has returned 401
+2025-06-09 16:01:29 [DEBUG   ] [nextcord.http                      ] Bucket None: Updated with limit 1, remaining 1, reset None, and reset_after 1.0 seconds.
+2025-06-09 16:01:29 [WARNING ] [nextcord.http                      ] Path ('GET', 'None:None:/users/@me', 'Bot MTM3ODky[redacted]') resulted in error 401, rejected authorization?
+2025-06-09 16:01:29 [DEBUG   ] [nextcord.http                      ] Bucket None: Resetting after 1.0 seconds.
+2025-06-09 16:01:29 [INFO    ] [cogs.tasks.dynamic_shop_task       ] DynamicShopTaskCog unloaded and task cancelled.
+2025-06-09 16:01:29 [INFO    ] [cogs.tasks.survival_task           ] SurvivalTaskCog unloaded and stat decay task cancelled.
+2025-06-09 16:01:29 [INFO    ] [cogs.tasks.autosave_task           ] Auto-saving data before unloading cog...
+2025-06-09 16:01:29 [DEBUG   ] [nextcord.client                    ] Dispatching event close
+2025-06-09 16:01:29 [DEBUG   ] [nextcord.http                      ] Detected task cancellation, breaking out of loop.
+2025-06-09 16:01:29 [DEBUG   ] [nextcord.http                      ] Ending ratelimit shedding loop with sleep_seconds 300 and threshold 600.
+2025-06-09 16:01:29 [INFO    ] [nextcord.client                    ] Cleaning up after 5 tasks.
+2025-06-09 16:01:29 [INFO    ] [nextcord.client                    ] All tasks finished cancelling.
+2025-06-09 16:01:29 [INFO    ] [nextcord.client                    ] Closing the event loop.
+2025-06-09 16:01:29 [CRITICAL] [__main__                           ] LỖI ĐĂNG NHẬP: Token không hợp lệ.
+2025-06-09 16:01:29 [INFO    ] [__main__                           ] Đang lưu dữ liệu kinh tế lần cuối từ cache...
+2025-06-09 16:01:29 [INFO    ] [__main__                           ] Lưu dữ liệu lần cuối thành công.
+2025-06-09 16:01:29 [INFO    ] [__main__                           ] ==================================================
+2025-06-09 16:01:29 [INFO    ] [__main__                           ] Bot đã dừng hoạt động.
+2025-06-09 16:01:29 [INFO    ] [__main__                           ] ==================================================
