@@ -2,3 +2,4 @@ google-generativeai
 nextcord
 python-dotenv
 aiohttp
+Flask
