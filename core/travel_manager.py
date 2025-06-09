@@ -4,21 +4,18 @@ import logging
 from typing import List, Dict, Any
 
 from .database import (
-    # [SỬA] Chỉ import các hàm thao tác dữ liệu, không import load/save
     get_or_create_global_user_profile,
     get_or_create_user_local_data
 )
-from .utils import try_send
-# [SỬA] Lấy item definitions từ cache của bot thay vì từ config tĩnh
+# [SỬA] Xóa 'from .utils import try_send' ở đây để phá vỡ tham chiếu vòng
 from .icons import ICON_INFO, ICON_ECOVISA, ICON_BACKPACK
 
 logger = logging.getLogger(__name__)
 
 # --- View cho việc chọn vật phẩm từ Balo ---
 class BackpackItemSelectView(nextcord.ui.View):
-    # ... (Giữ nguyên không thay đổi)
     def __init__(self, ctx, travel_manager_instance, items_to_choose_from: List[Dict[str, Any]], capacity: int):
-        super().__init__(timeout=300) # 5 phút để chọn
+        super().__init__(timeout=300)
         self.ctx = ctx
         self.travel_manager = travel_manager_instance
         self.interaction_user = ctx.author
@@ -52,12 +49,14 @@ async def handle_travel_event(ctx: nextcord.Message, bot: nextcord.Client):
     """
     Hàm chính để xử lý toàn bộ logic khi người chơi "du lịch" đến server mới.
     """
+    # [SỬA] Import try_send vào bên trong hàm thay vì ở đầu file
+    from .utils import try_send
+
     author_id = ctx.author.id
     guild_id = ctx.guild.id
     
     await try_send(ctx.channel, f"🌍 Chào mừng {ctx.author.mention} đã 'du lịch' đến **{ctx.guild.name}**! Đang kiểm tra hành lý của bạn...")
 
-    # [SỬA] Sử dụng cache economy_data từ bot, không load từ file
     economy_data = bot.economy_data
     global_profile = get_or_create_global_user_profile(economy_data, author_id)
     
@@ -72,7 +71,6 @@ async def handle_travel_event(ctx: nextcord.Message, bot: nextcord.Client):
     # --- 2. Xử lý Balo Du Lịch ---
     last_guild_id = global_profile.get("last_active_guild_id")
     if last_guild_id:
-        # [TỐI ƯU] Lấy định nghĩa item từ cache của bot
         UTILITY_ITEMS = bot.item_definitions
         backpack_to_use = next((item for item in global_profile.get("inventory_global", []) 
                                 if item.get("type") == "backpack" and 
@@ -108,12 +106,9 @@ async def handle_travel_event(ctx: nextcord.Message, bot: nextcord.Client):
                 
                 backpack_to_use["used"] = True
 
-    # --- Tổng kết và Lưu ---
+    # --- Tổng kết ---
     if not travel_results:
         travel_results.append("😅 Nhưng có vẻ như bạn đã đến đây tay không. Chúc may mắn ở vùng đất mới!")
     
     summary_embed = nextcord.Embed(title=f"Kết quả chuyến du lịch của {ctx.author.name}", description="\n".join(travel_results), color=nextcord.Color.blue())
     await try_send(ctx.channel, embed=summary_embed)
-
-    # [SỬA] Không cần save thủ công, autosave_task sẽ lo việc này
-    # save_economy_data(economy_data)
