@@ -3,41 +3,40 @@ import nextcord
 from nextcord.ext import commands, application_checks
 import logging
 
-from core.database import (
-    # [SỬA] Chỉ import các hàm thao tác, không load/save
-    get_or_create_global_user_profile,
-    get_or_create_user_local_data
-)
-from core.utils import check_is_bot_moderator_interaction, format_large_number
-from core.icons import * # Import tất cả icon
+from core.database import get_or_create_global_user_profile, get_or_create_user_local_data
+# [SỬA] Import từ file checks.py mới
+from core.checks import check_is_bot_moderator_interaction
+from core.utils import format_large_number
+from core.icons import *
 
 logger = logging.getLogger(__name__)
 
 class ModToolsSlashCog(commands.Cog, name="Moderator Slash Tools"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("ModToolsSlashCog (v3 - Refactored) initialized.")
+        logger.info("ModToolsSlashCog (Consolidated) initialized.")
 
     # --- Lệnh cha /mod ---
     @nextcord.slash_command(name="mod", description="Các công cụ dành cho Moderator của Bot")
     async def mod(self, interaction: nextcord.Interaction):
         pass
-    
+
     # --- Lệnh cha /mod set ---
     @mod.subcommand(name="set", description="Thiết lập một giá trị dữ liệu cụ thể cho người dùng.")
     async def set_group(self, interaction: nextcord.Interaction):
         pass
 
-    # --- Lệnh con /mod ping ---
+    # --- Lệnh con /mod ping (Gộp từ các file khác) ---
     @mod.subcommand(name="ping", description="Kiểm tra xem bạn có quyền Moderator của bot không.")
     @application_checks.check(check_is_bot_moderator_interaction)
     async def mod_ping(self, interaction: nextcord.Interaction):
         logger.info(f"MODERATOR ACTION: {interaction.user.id} đã sử dụng '/mod ping' thành công.")
+        # Tin nhắn đã được gửi từ hàm check nếu thất bại, nên chỉ cần xử lý khi thành công
         await interaction.response.send_message(
             f"{ICON_SUCCESS} {interaction.user.mention}, bạn có quyền Moderator/Owner! Các lệnh `/mod` đã sẵn sàng!",
             ephemeral=True
         )
-    
+
     # --- Lệnh con /mod view_user ---
     @mod.subcommand(name="view_user", description="Xem chi tiết toàn bộ dữ liệu kinh tế của một người dùng.")
     @application_checks.check(check_is_bot_moderator_interaction)
@@ -53,21 +52,19 @@ class ModToolsSlashCog(commands.Cog, name="Moderator Slash Tools"):
         await interaction.response.defer(ephemeral=True)
 
         if not interaction.guild:
-            await interaction.followup.send(f"{ICON_ERROR} Vui lòng dùng lệnh này trong một server để xem cả dữ liệu Local.", ephemeral=True)
+            await interaction.followup.send(f"{ICON_ERROR} Vui lòng dùng lệnh này trong một server.", ephemeral=True)
             return
-            
+
         try:
-            # [SỬA] Sử dụng cache của bot
             economy_data = self.bot.economy_data
             global_profile = get_or_create_global_user_profile(economy_data, user.id)
             local_data = get_or_create_user_local_data(global_profile, interaction.guild.id)
-            # [SỬA] Không cần save thủ công
 
             bank_balance = global_profile.get("bank_balance", 0)
             wanted_level = global_profile.get("wanted_level", 0.0)
             level_global = global_profile.get("level_global", 1)
             xp_global = global_profile.get("xp_global", 0)
-            
+
             local_balance = local_data.get("local_balance", {})
             earned = local_balance.get("earned", 0)
             adadd = local_balance.get("adadd", 0)
@@ -81,7 +78,7 @@ class ModToolsSlashCog(commands.Cog, name="Moderator Slash Tools"):
             )
             embed.set_thumbnail(url=user.display_avatar.url)
             embed.add_field(name="User ID", value=f"`{user.id}`", inline=False)
-            
+
             embed.add_field(
                 name=f"{ICON_LOCAL} Dữ liệu tại Server: {interaction.guild.name}",
                 value=(
@@ -92,7 +89,7 @@ class ModToolsSlashCog(commands.Cog, name="Moderator Slash Tools"):
                 ),
                 inline=True
             )
-            
+
             embed.add_field(
                 name=f"{ICON_GLOBAL} Dữ liệu Toàn cục",
                 value=(
@@ -121,16 +118,15 @@ class ModToolsSlashCog(commands.Cog, name="Moderator Slash Tools"):
         amount: int = nextcord.SlashOption(name="amount", description="Số tiền muốn thiết lập (số âm sẽ được đặt về 0).", required=True)
     ):
         await interaction.response.defer(ephemeral=True)
-        
+
         final_amount = max(0, amount)
-        
+
         try:
-            # [SỬA] Sử dụng cache của bot
             economy_data = self.bot.economy_data
             global_profile = get_or_create_global_user_profile(economy_data, user.id)
-            
+
             original_value = 0
-            
+
             if balance_type == "bank":
                 original_value = global_profile.get("bank_balance", 0)
                 global_profile["bank_balance"] = final_amount
@@ -143,8 +139,6 @@ class ModToolsSlashCog(commands.Cog, name="Moderator Slash Tools"):
                 original_value = local_data["local_balance"].get(balance_type, 0)
                 local_data["local_balance"][balance_type] = final_amount
                 icon = ICON_TIEN_SACH if balance_type == "earned" else ICON_TIEN_LAU
-
-            # [SỬA] Không cần save thủ công
 
             logger.info(f"MODERATOR ACTION: {interaction.user.id} đã set balance '{balance_type}' của {user.id} thành {final_amount}.")
 
@@ -160,8 +154,6 @@ class ModToolsSlashCog(commands.Cog, name="Moderator Slash Tools"):
         except Exception as e:
             logger.error(f"Lỗi trong lệnh /mod set balance: {e}", exc_info=True)
             await interaction.followup.send(f"{ICON_ERROR} Đã xảy ra lỗi khi cập nhật dữ liệu.", ephemeral=True)
-    
-    # ... Các lệnh set khác (xp, wanted_level) cũng được sửa tương tự ...
 
 def setup(bot: commands.Bot):
     bot.add_cog(ModToolsSlashCog(bot))
