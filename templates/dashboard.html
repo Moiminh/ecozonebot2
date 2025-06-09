@@ -6,101 +6,26 @@
     <title>⚙️ EconZone Dashboard</title>
     <style>
         :root {
-            --bg-color: #f4f7f9;
-            --card-bg-color: #ffffff;
-            --text-color: #333;
-            --header-color: #5a677d;
-            --primary-color: #4a90e2;
-            --success-color: #2e8b57;
-            --danger-color: #d9534f;
-            --info-color: #4682b4;
-            --warning-color: #f0ad4e;
-            --border-radius: 8px;
-            --box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+            --bg-color: #f4f7f9; --card-bg-color: #ffffff; --text-color: #333; --header-color: #5a677d; --primary-color: #4a90e2;
+            --success-color: #2e8b57; --danger-color: #d9534f; --info-color: #4682b4; --warning-color: #f0ad4e;
+            --border-radius: 8px; --box-shadow: 0 4px 8px rgba(0,0,0,0.05);
         }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            margin: 0;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            line-height: 1.6;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 2em auto;
-            padding: 0 2em;
-        }
-        header {
-            text-align: center;
-            margin-bottom: 2em;
-        }
-        header h1 {
-            color: var(--header-color);
-            font-weight: 600;
-        }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5em;
-            margin-bottom: 2em;
-        }
-        .stat-card {
-            background: var(--card-bg-color);
-            padding: 1.5em;
-            border-radius: var(--border-radius);
-            box-shadow: var(--box-shadow);
-            text-align: center;
-        }
-        .stat-card h3 {
-            margin-top: 0;
-            color: var(--primary-color);
-        }
-        .stat-card .value {
-            font-size: 2em;
-            font-weight: 700;
-        }
-        .section {
-            background: var(--card-bg-color);
-            padding: 2em;
-            border-radius: var(--border-radius);
-            box-shadow: var(--box-shadow);
-            margin-bottom: 2em;
-        }
-        .section h2 {
-            margin-top: 0;
-            border-bottom: 2px solid var(--bg-color);
-            padding-bottom: 0.5em;
-        }
-        button {
-            background-color: var(--primary-color);
-            color: white;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1em;
-            font-weight: 600;
-            transition: background-color 0.2s;
-        }
-        button:hover {
-            background-color: #357abd;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1em;
-        }
-        th, td {
-            text-align: left;
-            padding: 12px;
-            border-bottom: 1px solid #ddd;
-        }
-        th {
-            background-color: #f2f2f2;
-        }
-        tr:hover {
-            background-color: #f9f9f9;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background-color: var(--bg-color); color: var(--text-color); line-height: 1.6; }
+        .container { max-width: 1200px; margin: 2em auto; padding: 0 2em; }
+        header { text-align: center; margin-bottom: 2em; }
+        header h1 { color: var(--header-color); font-weight: 600; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5em; margin-bottom: 2em; }
+        .stat-card { background: var(--card-bg-color); padding: 1.5em; border-radius: var(--border-radius); box-shadow: var(--box-shadow); text-align: center; }
+        .stat-card h3 { margin-top: 0; color: var(--primary-color); }
+        .stat-card .value { font-size: 2em; font-weight: 700; }
+        .section { background: var(--card-bg-color); padding: 2em; border-radius: var(--border-radius); box-shadow: var(--box-shadow); margin-bottom: 2em; }
+        .section h2 { margin-top: 0; border-bottom: 2px solid var(--bg-color); padding-bottom: 0.5em; }
+        button { background-color: var(--primary-color); color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; font-weight: 600; transition: background-color 0.2s; }
+        button:hover { background-color: #357abd; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ddd; }
+        th { background-color: #f2f2f2; }
+        tr:hover { background-color: #f9f9f9; }
         .flashes { list-style: none; padding: 0; }
         .flashes li { padding: 1em; margin-bottom: 1em; border-radius: 5px; border-left: 5px solid; }
         .flashes .success { background: #e9f7ef; color: #2d6a4f; border-color: var(--success-color); }
@@ -116,18 +41,10 @@
             <h1>⚙️ Bảng Điều Khiển EconZone</h1>
             <p>Xin chào, <strong>{{ session['user_id'] }}</strong>! Chúc một ngày làm việc hiệu quả.</p>
         </header>
-
         <div class="stats-grid">
-            <div class="stat-card">
-                <h3>📊 Trạng thái CSDL</h3>
-                <p class="value">{{ current_db_type.upper() }}</p>
-            </div>
-            <div class="stat-card">
-                <h3>👥 Tổng số người dùng</h3>
-                <p class="value">{{ "{:,}".format(user_count) }}</p>
-            </div>
+            <div class="stat-card"><h3>📊 Trạng thái CSDL</h3><p class="value">{{ current_db_type.upper() }}</p></div>
+            <div class="stat-card"><h3>👥 Tổng số người dùng</h3><p class="value">{{ "{:,}".format(user_count) }}</p></div>
         </div>
-
         <div class="section">
             <h2>⚡ Hành Động Quản Trị</h2>
             <p>Sử dụng nút bên dưới để di chuyển dữ liệu từ file <code>economy.json</code> sang CSDL SQLite. Đây là hành động chỉ nên thực hiện một lần.</p>
@@ -135,7 +52,6 @@
               <button type="submit">🚀 Chạy Script Di Chuyển Dữ Liệu</button>
             </form>
         </div>
-
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             <div class="section">
@@ -148,28 +64,15 @@
             </div>
           {% endif %}
         {% endwith %}
-
         <div class="section">
             <h2>🏆 Top 10 Người Dùng Giàu Nhất (Bank)</h2>
             <table>
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>User ID</th>
-                        <th>💰 Số dư Bank</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>#</th><th>User ID</th><th>💰 Số dư Bank</th></tr></thead>
                 <tbody>
                 {% for user in top_users %}
-                    <tr>
-                        <td>{{ loop.index }}</td>
-                        <td>{{ user['user_id'] }}</td>
-                        <td>{{ "{:,}".format(user['bank_balance']) }}</td>
-                    </tr>
+                    <tr><td>{{ loop.index }}</td><td>{{ user['user_id'] }}</td><td>{{ "{:,}".format(user['bank_balance']) }}</td></tr>
                 {% else %}
-                    <tr>
-                        <td colspan="3" style="text-align:center;">Chưa có dữ liệu để hiển thị.</td>
-                    </tr>
+                    <tr><td colspan="3" style="text-align:center;">Chưa có dữ liệu để hiển thị.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
