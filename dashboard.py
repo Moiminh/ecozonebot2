@@ -47,3 +47,52 @@ def dashboard():
 if __name__ == "__main__":
     # Chạy ở chế độ debug để dễ dàng phát triển
     app.run(debug=True, port=5000)
+# (Giữ nguyên các dòng import và cấu hình ở trên)
+# ...
+
+# --- Middleware kiểm tra đăng nhập ---
+@app.before_request
+def require_login():
+    """Hàm này sẽ chạy trước mỗi yêu cầu."""
+    # Các trang không yêu cầu đăng nhập
+    allowed_routes = ['login', 'static']
+    if request.endpoint not in allowed_routes and 'user_id' not in session:
+        return redirect(url_for('login'))
+
+# --- Các Route (đường dẫn) của trang web ---
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user_id_input = request.form.get('user_id', type=int)
+        if user_id_input in OWNER_IDS:
+            session['user_id'] = user_id_input
+            flash('Đăng nhập thành công!', 'success')
+            return redirect(url_for('dashboard'))
+        else:
+            flash('ID của bạn không có quyền truy cập!', 'danger')
+    # Hiển thị form đăng nhập
+    return """
+        <!doctype html>
+        <title>Login</title>
+        <h1>Đăng nhập vào Dashboard</h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <p style="color:red;">{{ message }}</p>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+        <form method=post>
+          <p>User ID: <input type=text name=user_id></p>
+          <p><input type=submit value=Login></p>
+        </form>
+    """
+
+@app.route("/")
+def dashboard():
+    # (Phần này sẽ được thêm ở các bước sau)
+    return f"<h1>Xin chào, {session['user_id']}!</h1><p>Đây là trang Dashboard.</p>"
+
+# (Giữ nguyên phần if __name__ == "__main__": ở cuối)
+# ...
