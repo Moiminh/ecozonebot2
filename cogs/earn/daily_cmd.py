@@ -4,11 +4,6 @@ from nextcord.ext import commands
 import random
 from datetime import datetime
 import logging
-
-from core.database import (
-    get_or_create_global_user_profile,
-    get_or_create_user_local_data
-)
 from core.utils import try_send
 from core.config import DAILY_COOLDOWN
 from core.leveling import check_and_process_levelup
@@ -19,7 +14,7 @@ logger = logging.getLogger(__name__)
 class DailyCommandCog(commands.Cog, name="Daily Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("DailyCommandCog (v3 - Refactored) initialized.")
+        logger.info("DailyCommandCog (SQLite Ready) initialized.")
 
     @commands.command(name='daily', aliases=['d'])
     @commands.guild_only()
@@ -28,29 +23,28 @@ class DailyCommandCog(commands.Cog, name="Daily Command"):
         guild_id = ctx.guild.id
         
         try:
-            # [SỬA] Sử dụng cache từ bot
-            economy_data = self.bot.economy_data
-            global_profile = get_or_create_global_user_profile(economy_data, author_id)
-            local_data = get_or_create_user_local_data(global_profile, guild_id)
-
             now = datetime.now().timestamp()
-            last_daily = global_profile.get("cooldowns", {}).get("daily", 0)
+            last_daily = self.bot.db.get_cooldown(author_id, 'daily')
             
             if now - last_daily < DAILY_COOLDOWN:
                 time_left = str(datetime.fromtimestamp(last_daily + DAILY_COOLDOWN) - datetime.now()).split('.')[0]
-                await try_send(ctx, content=f"{ICON_LOADING} Bạn đã nhận thưởng ngày hôm nay rồi! Lệnh `daily` còn chờ: **{time_left}**.")
+                await try_send(ctx, content=f"{ICON_LOADING} Bạn đã nhận thưởng ngày hôm nay rồi! Chờ: **{time_left}**.")
                 return
+            
+            local_data = self.bot.db.get_or_create_user_local_data(author_id, guild_id)
             
             bonus = random.randint(500, 1500)
             xp_earned_local = random.randint(15, 50)
             xp_earned_global = random.randint(25, 75)
 
-            local_data["local_balance"]["earned"] += bonus
-            local_data["xp_local"] += xp_earned_local
-            global_profile["xp_global"] += xp_earned_global
-            global_profile.setdefault("cooldowns", {})["daily"] = now
+            # Cập nhật dữ liệu
+            self.bot.db.update_balance(author_id, guild_id, 'local_balance_earned', local_data['local_balance_earned'] + bonus)
+            self.bot.db.update_xp(author_id, guild_id, xp_earned_local, xp_earned_global)
+            self.bot.db.set_cooldown(author_id, 'daily', now)
             
-            total_local_balance = local_data["local_balance"]["earned"] + local_data["local_balance"]["adadd"]
+            new_earned_balance = local_data['local_balance_earned'] + bonus
+            total_local_balance = new_earned_balance + local_data['local_balance_adadd']
+            
             await try_send(
                 ctx, 
                 content=(
@@ -61,14 +55,14 @@ class DailyCommandCog(commands.Cog, name="Daily Command"):
                 )
             )
 
-            await check_and_process_levelup(ctx, local_data, 'local')
-            await check_and_process_levelup(ctx, global_profile, 'global')
-            
-            # [XÓA] Không cần save thủ công
-            # save_economy_data(economy_data)
+            # Cập nhật lại dữ liệu mới nhất để kiểm tra level up
+            global_profile = self.bot.db.get_or_create_global_user_profile(author_id)
+            local_data = self.bot.db.get_or_create_user_local_data(author_id, guild_id)
+            await check_and_process_levelup(ctx, dict(local_data), 'local')
+            await check_and_process_levelup(ctx, dict(global_profile), 'global')
 
         except Exception as e:
-            logger.error(f"Lỗi trong lệnh 'daily' (v3) cho user {author_id}: {e}", exc_info=True)
+            logger.error(f"Lỗi trong lệnh 'daily' cho user {author_id}: {e}", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã xảy ra lỗi khi bạn nhận thưởng hàng ngày.")
 
 def setup(bot: commands.Bot):
