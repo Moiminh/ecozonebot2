@@ -100,6 +100,7 @@ def run_flask_app(bot_instance):
     """Lưu đối tượng bot và chạy ứng dụng Flask."""
     global discord_bot
     discord_bot = bot_instance
+    # Đảm bảo có host="0.0.0.0" ở đây
     app.run(host="0.0.0.0", port=8080)
 
 # Phần if __name__ == "__main__" không còn cần thiết nếu bạn chỉ chạy từ main.py
