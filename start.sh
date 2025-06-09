@@ -42,5 +42,5 @@ if [ ! -z "$NGROK_AUTH_TOKEN" ]; then
     ngrok http 8080 --authtoken=$NGROK_AUTH_TOKEN
 else
     echo "[!] Không tìm thấy NGROK_AUTH_TOKEN, chạy ngrok không xác thực."
-    ngrok http 8080
+    ngrok http 8080 --region ap
 fi
