@@ -4,12 +4,7 @@ from nextcord.ext import commands
 import logging
 from core.checks import is_guild_owner_check
 from core.config import COMMAND_PREFIX
-from core.database import (
-    get_or_create_global_user_profile,
-    get_or_create_user_local_data
-)
-from core.utils import try_send, is_guild_owner_check
-from core.config import COMMAND_PREFIX
+from core.utils import try_send
 from core.icons import ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_INFO, ICON_TIEN_LAU, ICON_TIEN_SACH
 
 logger = logging.getLogger(__name__)
@@ -17,7 +12,7 @@ logger = logging.getLogger(__name__)
 class RemoveMoneyCommandCog(commands.Cog, name="ServerAdmin RemoveMoney"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("RemoveMoneyCommandCog (v3 - Refactored) initialized.")
+        logger.info("RemoveMoneyCommandCog (SQLite Ready) initialized.")
 
     @commands.command(name='removemoney', aliases=['rm', 'ecotake', 'submoney'])
     @commands.check(is_guild_owner_check)
@@ -31,21 +26,15 @@ class RemoveMoneyCommandCog(commands.Cog, name="ServerAdmin RemoveMoney"):
             await try_send(ctx, content=f"{ICON_ERROR} Số tiền trừ đi phải là số dương.")
             return
             
-        target_user_id = member.id
-        guild_id = ctx.guild.id
-        
         try:
-            # [SỬA] Sử dụng cache từ bot
-            economy_data = self.bot.economy_data
-            global_profile = get_or_create_global_user_profile(economy_data, target_user_id)
-            local_data = get_or_create_user_local_data(global_profile, guild_id)
+            local_data = self.bot.db.get_or_create_user_local_data(member.id, ctx.guild.id)
             
-            adadd_balance = local_data["local_balance"]["adadd"]
-            earned_balance = local_data["local_balance"]["earned"]
+            adadd_balance = local_data['local_balance_adadd']
+            earned_balance = local_data['local_balance_earned']
             total_local_balance = adadd_balance + earned_balance
 
             if total_local_balance == 0:
-                await try_send(ctx, content=f"{ICON_INFO} {member.mention} không có tiền trong Ví Local tại server này để trừ.")
+                await try_send(ctx, content=f"{ICON_INFO} {member.mention} không có tiền trong Ví Local để trừ.")
                 return
 
             amount_to_remove = min(amount, total_local_balance)
@@ -53,15 +42,12 @@ class RemoveMoneyCommandCog(commands.Cog, name="ServerAdmin RemoveMoney"):
             adadd_deducted = min(adadd_balance, amount_to_remove)
             earned_deducted = amount_to_remove - adadd_deducted
             
-            local_data["local_balance"]["adadd"] -= adadd_deducted
-            local_data["local_balance"]["earned"] -= earned_deducted
+            self.bot.db.update_balance(member.id, ctx.guild.id, 'local_balance_adadd', adadd_balance - adadd_deducted)
+            self.bot.db.update_balance(member.id, ctx.guild.id, 'local_balance_earned', earned_balance - earned_deducted)
             
-            # [XÓA] Không cần save thủ công
-            # save_economy_data(economy_data)
-
-            logger.info(f"SERVER ADMIN ACTION: {ctx.author.id} tại guild {guild_id} đã trừ {amount_to_remove} từ Ví Local của user {target_user_id}.")
+            logger.info(f"SERVER ADMIN ACTION: {ctx.author.id} tại guild {ctx.guild.id} đã trừ {amount_to_remove} từ Ví Local của user {member.id}.")
             
-            new_total_local_balance = local_data["local_balance"]["adadd"] + local_data["local_balance"]["earned"]
+            new_total_local_balance = (adadd_balance - adadd_deducted) + (earned_balance - earned_deducted)
             
             await try_send(
                 ctx,
@@ -73,7 +59,7 @@ class RemoveMoneyCommandCog(commands.Cog, name="ServerAdmin RemoveMoney"):
             )
 
         except Exception as e:
-            logger.error(f"Lỗi trong lệnh 'removemoney' (v3) bởi {ctx.author.name}:", exc_info=True)
+            logger.error(f"Lỗi trong lệnh 'removemoney' bởi {ctx.author.name}:", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi thực hiện lệnh trừ tiền.")
         
     @remove_money.error 
