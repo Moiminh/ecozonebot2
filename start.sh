@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Hàm cleanup để dừng bot khi script bị tắt
 cleanup() {
     echo -e "\n[+] Đã nhận tín hiệu dừng."
     if [ ! -z "$BOT_PID" ]; then
@@ -10,9 +11,10 @@ cleanup() {
     exit
 }
 
+# Đặt bẫy để chạy hàm cleanup khi nhấn Ctrl+C
 trap cleanup INT EXIT
 
-echo "[+] Đang đọc cấu hình từ file .env..."
+# Đọc file .env
 if [ -f .env ]; then
     export $(grep -v '^#' .env | xargs)
 fi
@@ -29,5 +31,4 @@ echo "[+] Đang khởi động đường hầm với localhost.run cho cổng 80
 echo "[!] Nhấn Ctrl+C để dừng cả đường hầm và bot."
 
 # Chạy localhost.run ở chế độ foreground
-# Nó sẽ tạo một đường hầm từ cổng 80 (cổng web mặc định) tới cổng 8080 trên máy của bạn
 ssh -R 80:localhost:8080 localhost.run
