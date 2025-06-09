@@ -5,7 +5,6 @@ import random
 import logging
 from datetime import datetime
 
-from core.database import get_or_create_global_user_profile, get_or_create_user_local_data
 from core.utils import try_send, require_travel_check
 from core.config import DICE_COOLDOWN, BASE_CATCH_CHANCE, WANTED_LEVEL_CATCH_MULTIPLIER
 from core.icons import ICON_LOADING, ICON_ERROR, ICON_DICE, ICON_MONEY_BAG, ICON_ECOIN, ICON_ECOBIT, ICON_WARNING
@@ -13,7 +12,7 @@ from core.icons import ICON_LOADING, ICON_ERROR, ICON_DICE, ICON_MONEY_BAG, ICON
 logger = logging.getLogger(__name__)
 
 class BetConfirmationView(nextcord.ui.View):
-    # ... (Giữ nguyên không thay đổi)
+    # Class View không thay đổi
     def __init__(self, ctx, game_cog_instance, bet_amount):
         super().__init__(timeout=120)
         self.ctx = ctx
@@ -37,45 +36,37 @@ class BetConfirmationView(nextcord.ui.View):
     @nextcord.ui.button(label="Cược bằng 🪙Ecoin (An toàn)", style=nextcord.ButtonStyle.green, custom_id="bet_ecoin")
     async def bet_with_ecoin(self, button: nextcord.ui.Button, interaction: nextcord.Interaction):
         await interaction.response.defer()
-        await self.game_cog.play_dice_game(self, interaction, "earned")
+        await self.game_cog.play_dice_game(self, interaction, "local_balance_earned")
 
     @nextcord.ui.button(label="Cược bằng 🧪Ecobit (Rủi ro)", style=nextcord.ButtonStyle.red, custom_id="bet_ecobit")
     async def bet_with_ecobit(self, button: nextcord.ui.Button, interaction: nextcord.Interaction):
         await interaction.response.defer()
-        await self.game_cog.play_dice_game(self, interaction, "adadd")
+        await self.game_cog.play_dice_game(self, interaction, "local_balance_adadd")
 
 class DiceCommandCog(commands.Cog, name="Dice Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("DiceCommandCog (v6 - Refactored & Patched) initialized.")
+        logger.info("DiceCommandCog (SQLite Ready) initialized.")
 
     @commands.command(name='dice', aliases=['roll'])
     @commands.guild_only()
     @require_travel_check
     async def dice(self, ctx: commands.Context, bet: int):
-        """Chơi xúc xắc, tổng lớn hơn 7 thì thắng."""
         if bet <= 0:
             await try_send(ctx, content=f"{ICON_ERROR} Tiền cược phải lớn hơn 0!")
             return
 
-        # [SỬA] Sử dụng cache
-        economy_data = self.bot.economy_data
-        global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
-        local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
-
         now = datetime.now().timestamp()
-        last_dice = global_profile.get("cooldowns", {}).get("dice", 0)
+        last_dice = self.bot.db.get_cooldown(ctx.author.id, "dice")
         if now - last_dice < DICE_COOLDOWN:
             time_left = str(datetime.fromtimestamp(last_dice + DICE_COOLDOWN) - datetime.now()).split('.')[0]
             await try_send(ctx, content=f"{ICON_LOADING} Chơi chậm thôi! Chờ: **{time_left}**.")
             return
 
+        local_data = self.bot.db.get_or_create_user_local_data(ctx.author.id, ctx.guild.id)
         view = BetConfirmationView(ctx, self, bet)
-        earned_balance = local_data["local_balance"]["earned"]
-        adadd_balance = local_data["local_balance"]["adadd"]
-
-        view.children[0].disabled = earned_balance < bet
-        view.children[1].disabled = adadd_balance < bet
+        view.children[0].disabled = local_data['local_balance_earned'] < bet
+        view.children[1].disabled = local_data['local_balance_adadd'] < bet
 
         if view.children[0].disabled and view.children[1].disabled:
             await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền trong bất kỳ ví nào để đặt cược **{bet:,}**.")
@@ -85,33 +76,29 @@ class DiceCommandCog(commands.Cog, name="Dice Command"):
         if msg:
             view.message = msg
 
-    async def play_dice_game(self, view: BetConfirmationView, interaction: nextcord.Interaction, payment_type: str):
+    async def play_dice_game(self, view: BetConfirmationView, interaction: nextcord.Interaction, balance_type: str):
         ctx = view.ctx
+        author_id = ctx.author.id
+        guild_id = ctx.guild.id
         bet = view.bet
 
-        economy_data = self.bot.economy_data
-        global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
-        local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
+        global_profile = self.bot.db.get_or_create_global_user_profile(author_id)
+        local_data = self.bot.db.get_or_create_user_local_data(author_id, guild_id)
 
-        # Trừ tiền cược
-        local_data["local_balance"][payment_type] -= bet
+        self.bot.db.update_balance(author_id, guild_id, balance_type, local_data[balance_type] - bet)
         
-        # Kiểm tra rủi ro nếu cược bằng tiền lậu
-        if payment_type == "adadd":
-            wanted_level = global_profile.get("wanted_level", 0.0)
+        if balance_type == "local_balance_adadd":
+            wanted_level = global_profile['wanted_level']
             catch_chance = min(0.9, BASE_CATCH_CHANCE + wanted_level * WANTED_LEVEL_CATCH_MULTIPLIER)
             if random.random() < catch_chance:
-                fine_amount = min(local_data["local_balance"]["earned"], int(bet * 0.5))
-                local_data["local_balance"]["earned"] -= fine_amount
-                global_profile["wanted_level"] = global_profile.get("wanted_level", 0.0) + 0.1
-                logger.warning(f"User {ctx.author.id} bị bắt khi cược {bet} bằng Ecobit.")
+                fine_amount = min(local_data["local_balance_earned"], int(bet * 0.5))
+                self.bot.db.update_balance(author_id, guild_id, 'local_balance_earned', local_data['local_balance_earned'] - fine_amount)
+                self.bot.db.update_wanted_level(author_id, wanted_level + 0.1)
                 await view.message.edit(content=f"🚨 **BỊ BẮT!** Cảnh sát phát hiện bạn dùng `🧪Ecobit` để cờ bạc! Bạn bị phạt **{fine_amount:,}** `🪙Ecoin`.", view=None)
                 return
 
-        # Đặt cooldown
-        global_profile.setdefault("cooldowns", {})["dice"] = datetime.now().timestamp()
+        self.bot.db.set_cooldown(author_id, "dice", datetime.now().timestamp())
         
-        # Logic game
         d1 = random.randint(1, 6)
         d2 = random.randint(1, 6)
         total_roll = d1 + d2
@@ -124,15 +111,15 @@ class DiceCommandCog(commands.Cog, name="Dice Command"):
             winnings = int(bet * 1.5)
 
         if winnings > 0:
-            # [SỬA LỖI] Tiền thắng được trả về đúng loại ví đã cược
-            winnings_destination = payment_type
-            winnings_icon = ICON_ECOBIT if winnings_destination == "adadd" else ICON_ECOIN
-            local_data["local_balance"][winnings_destination] += winnings
+            current_balance = self.bot.db.get_or_create_user_local_data(author_id, guild_id)[balance_type]
+            self.bot.db.update_balance(author_id, guild_id, balance_type, current_balance + winnings)
+            winnings_icon = ICON_ECOBIT if balance_type == "local_balance_adadd" else ICON_ECOIN
             final_msg = f"🎉 Chúc mừng! Bạn thắng và nhận được **{winnings:,}** {winnings_icon}!"
         else:
             final_msg = "😭 Tiếc quá, bạn thua rồi!"
 
-        new_total_balance = local_data["local_balance"]["earned"] + local_data["local_balance"]["adadd"]
+        final_local_data = self.bot.db.get_or_create_user_local_data(author_id, guild_id)
+        new_total_balance = final_local_data["local_balance_earned"] + final_local_data["local_balance_adadd"]
         await view.message.edit(content=f"{header_msg}{final_msg}\nVí Local của bạn giờ là: **{new_total_balance:,}** {ICON_MONEY_BAG}", view=None)
 
 def setup(bot: commands.Bot):
