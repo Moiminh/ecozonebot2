@@ -1,8 +1,9 @@
+# bot/cogs/admin/auto_cmd.py
 import nextcord
 from nextcord.ext import commands
 import logging
 
-from core.database import load_economy_data, get_or_create_guild_config, save_economy_data
+from core.database import get_or_create_guild_config
 from core.utils import try_send
 from core.icons import ICON_SUCCESS, ICON_ERROR
 
@@ -11,21 +12,20 @@ logger = logging.getLogger(__name__)
 class AutoCommandCog(commands.Cog, name="Auto Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.debug(f"AutoCommandCog initialized.")
+        logger.info("AutoCommandCog (v2 - Refactored) initialized.")
 
     @commands.command(name="auto")
     @commands.has_guild_permissions(administrator=True)
+    @commands.guild_only()
     async def auto_toggle_bare_commands(self, ctx: commands.Context):
-        if not ctx.guild:
-            await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
-            return
-
+        """Bật/tắt chế độ lệnh không cần prefix trong kênh hiện tại."""
         logger.debug(f"Lệnh 'auto' được gọi bởi {ctx.author.name} tại guild '{ctx.guild.name}' ({ctx.guild.id}).")
         
-        economy_data = load_economy_data()
+        # [SỬA] Sử dụng cache của bot
+        economy_data = self.bot.economy_data
         guild_config = get_or_create_guild_config(economy_data, ctx.guild.id)
         
-        active_channels = guild_config.get("bare_command_active_channels", [])
+        active_channels = guild_config.setdefault("bare_command_active_channels", [])
         channel_id = ctx.channel.id
         
         msg_content = ""
@@ -40,8 +40,9 @@ class AutoCommandCog(commands.Cog, name="Auto Command"):
             action_taken = "BẬT"
             msg_content = f"{ICON_SUCCESS} Đã **BẬT** tính năng lệnh tắt (không cần prefix) cho kênh {ctx.channel.mention} này."
             
-        guild_config["bare_command_active_channels"] = active_channels
-        save_economy_data(economy_data)
+        # [SỬA] Không cần lưu thủ công
+        # guild_config["bare_command_active_channels"] = active_channels
+        # save_economy_data(economy_data)
 
         logger.info(f"ADMIN ACTION: {ctx.author.display_name} ({ctx.author.id}) đã {action_taken} chế độ 'auto' cho kênh {ctx.channel.name} (ID: {channel_id}) trong guild {ctx.guild.id}.")
         
