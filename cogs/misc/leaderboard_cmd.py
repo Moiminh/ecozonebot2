@@ -1,11 +1,12 @@
+# bot/cogs/misc/leaderboard_cmd.py
 import nextcord
 from nextcord.ext import commands
 import math
 import logging
 
-from core.database import load_economy_data
-from core.utils import try_send
-from core.config import CURRENCY_SYMBOL
+# [SỬA] Import các hàm và hằng số cần thiết từ core
+from core.database import get_or_create_global_user_profile
+from core.utils import try_send, format_large_number
 from core.icons import ICON_LEADERBOARD, ICON_INFO, ICON_MONEY_BAG, ICON_PROFILE, ICON_ERROR, ICON_WARNING
 
 logger = logging.getLogger(__name__)
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 ITEMS_PER_PAGE = 10
 
 class LeaderboardView(nextcord.ui.View):
+    # ... (Class View không thay đổi logic, giữ nguyên) ...
     def __init__(self, *, sorted_users_data: list, original_author: nextcord.User, bot_instance: commands.Bot, guild_name: str):
         super().__init__(timeout=180)
         self.sorted_users_data = sorted_users_data
@@ -20,7 +22,7 @@ class LeaderboardView(nextcord.ui.View):
         self.bot = bot_instance
         self.guild_name = guild_name
         self.current_page = 1
-        self.total_pages = math.ceil(len(self.sorted_users_data) / ITEMS_PER_PAGE)
+        self.total_pages = math.ceil(len(self.sorted_users_data) / ITEMS_PER_PAGE) if ITEMS_PER_PAGE > 0 else 1
         self.message = None
 
         self.first_page_button = nextcord.ui.Button(label="⏪", style=nextcord.ButtonStyle.blurple)
@@ -67,7 +69,7 @@ class LeaderboardView(nextcord.ui.View):
         for user_id_str, local_wealth in self.sorted_users_data[start_index:end_index]:
             try:
                 user_obj = await self.bot.fetch_user(int(user_id_str))
-                description_parts.append(f"{rank_display}. {user_obj.name} - {ICON_MONEY_BAG} **{local_wealth:,}** {CURRENCY_SYMBOL}")
+                description_parts.append(f"{rank_display}. {user_obj.name} - {ICON_MONEY_BAG} **{format_large_number(local_wealth)}**")
                 rank_display += 1
             except nextcord.NotFound:
                 description_parts.append(f"{rank_display}. *User không tồn tại (ID: {user_id_str})*")
@@ -112,23 +114,21 @@ class LeaderboardView(nextcord.ui.View):
             try:
                 current_embed = self.message.embeds[0] if self.message.embeds else None
                 await self.message.edit(embed=current_embed, view=self) 
-            except Exception as e: logger.warning(f"Leaderboard Timeout: Lỗi khi vô hiệu hóa nút:", exc_info=True)
+            except Exception: pass
 
 class LeaderboardCommandCog(commands.Cog, name="Leaderboard Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.debug("LeaderboardCommandCog initialized for Ecoworld Economy.")
+        logger.debug("LeaderboardCommandCog (Refactored) initialized.")
 
     @commands.command(name='leaderboard', aliases=['lb', 'top', 'serverlb'])
+    @commands.guild_only()
     async def server_leaderboard(self, ctx: commands.Context):
-        if not ctx.guild:
-            await try_send(ctx, content=f"{ICON_ERROR} Lệnh này chỉ có thể sử dụng trong một server.")
-            return
-
         logger.info(f"Lệnh 'leaderboard' (server) được gọi bởi {ctx.author.name} tại guild '{ctx.guild.name}'.")
         await ctx.message.add_reaction("⏳")
         
-        economy_data = load_economy_data()
+        # [SỬA] Sử dụng cache của bot
+        economy_data = self.bot.economy_data
         all_users_data = economy_data.get("users", {})
         
         if not all_users_data:
@@ -139,11 +139,12 @@ class LeaderboardCommandCog(commands.Cog, name="Leaderboard Command"):
         user_wealth_list = []
         for user_id, user_profile in all_users_data.items():
             if user_id in guild_member_ids:
-                if isinstance(user_profile, dict) and "server_data" in user_profile:
+                if isinstance(user_profile, dict):
+                    # Không cần get_or_create vì chỉ đọc dữ liệu
                     server_data = user_profile.get("server_data", {}).get(str(ctx.guild.id))
                     if server_data and isinstance(server_data.get("local_balance"), dict):
                         local_balance = server_data.get("local_balance", {})
-                        total_local_wealth = local_balance.get("earned", 0) + local_balance.get("admin_added", 0)
+                        total_local_wealth = local_balance.get("earned", 0) + local_balance.get("adadd", 0)
                         user_wealth_list.append((user_id, total_local_wealth))
 
         sorted_users = sorted(user_wealth_list, key=lambda x: x[1], reverse=True)
@@ -154,18 +155,15 @@ class LeaderboardCommandCog(commands.Cog, name="Leaderboard Command"):
             await try_send(ctx, content=f"{ICON_INFO} Không có ai trong server này có dữ liệu Ví Local để xếp hạng!")
             return
 
-        user_rank_message = f"{ICON_INFO} Bảng xếp hạng server này dựa trên tổng số tiền trong **Ví Local**."
         author_local_wealth = 0
-        rank_found = False
+        author_rank = "N/A"
         for i, (user_id, wealth) in enumerate(sorted_users):
             if str(ctx.author.id) == user_id:
-                user_rank = i + 1
+                author_rank = f"#{i + 1}"
                 author_local_wealth = wealth
-                user_rank_message = f"{ICON_PROFILE} {ctx.author.mention}, bạn đang ở **hạng #{user_rank}** trên bảng xếp hạng server này với tổng Ví Local là **{author_local_wealth:,}** {CURRENCY_SYMBOL}."
-                rank_found = True
                 break
-        if not rank_found:
-             user_rank_message = f"{ICON_INFO} {ctx.author.mention}, bạn hiện chưa có mặt trên bảng xếp hạng server này."
+        
+        user_rank_message = f"{ICON_PROFILE} {ctx.author.mention}, bạn đang ở **hạng {author_rank}** trên server này với **{format_large_number(author_local_wealth)}** tại Ví Local."
 
         await try_send(ctx, content=user_rank_message)
 
@@ -175,8 +173,7 @@ class LeaderboardCommandCog(commands.Cog, name="Leaderboard Command"):
         try:
             sent_message = await ctx.send(embed=initial_embed, view=view)
             view.message = sent_message
-        except nextcord.HTTPException as e:
-            logger.error(f"Lỗi khi gửi tin nhắn leaderboard ban đầu:", exc_info=True)
+        except nextcord.HTTPException:
             await ctx.send(f"{ICON_ERROR} Không thể hiển thị bảng xếp hạng lúc này.")
 
 def setup(bot: commands.Bot):
