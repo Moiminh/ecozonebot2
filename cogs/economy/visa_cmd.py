@@ -2,11 +2,9 @@
 import nextcord
 from nextcord.ext import commands
 import logging
-import uuid
-
-from core.database import get_or_create_global_user_profile
+import json
 from core.utils import try_send, format_large_number, require_travel_check
-from core.config import COMMAND_PREFIX, UPGRADE_VISA_COST
+from core.config import COMMAND_PREFIX
 from core.icons import ICON_SUCCESS, ICON_ERROR, ICON_INFO, ICON_BANK_MAIN, ICON_ECOBANK, ICON_ECOVISA
 
 logger = logging.getLogger(__name__)
@@ -14,18 +12,16 @@ logger = logging.getLogger(__name__)
 class VisaCommandCog(commands.Cog, name="Visa Commands"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("VisaCommandCog (v3 - Refactored) initialized.")
+        logger.info("VisaCommandCog (SQLite Ready) initialized.")
 
     @commands.group(name='visa', invoke_without_command=True)
     async def visa(self, ctx: commands.Context):
-        """Lệnh cha cho các hoạt động liên quan đến thẻ Visa."""
         await try_send(ctx, content=f"{ICON_INFO} Vui lòng sử dụng một lệnh con. Gõ `{COMMAND_PREFIX}help visa` để xem chi tiết.")
 
     @visa.command(name="buy")
     @commands.guild_only()
     @require_travel_check
     async def buy_visa(self, ctx: commands.Context, visa_id_str: str):
-        """Mua một thẻ Visa mới bằng tiền từ Bank trung tâm của bạn."""
         item_id_to_buy = visa_id_str.lower().strip()
         all_items = self.bot.item_definitions
 
@@ -34,34 +30,27 @@ class VisaCommandCog(commands.Cog, name="Visa Commands"):
             return
 
         try:
-            economy_data = self.bot.economy_data
-            global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
-            
+            global_profile = self.bot.db.get_or_create_global_user_profile(ctx.author.id)
             visa_details = all_items[item_id_to_buy]
             price = visa_details.get("price", 0)
 
-            if global_profile.get("bank_balance", 0) < price:
-                await try_send(ctx, content=f"{ICON_ERROR} Bạn không đủ tiền trong Bank. Cần **{price:,}**, bạn có **{global_profile.get('bank_balance', 0):,}**.")
+            if global_profile['bank_balance'] < price:
+                await try_send(ctx, content=f"{ICON_ERROR} Bạn không đủ tiền trong Bank. Cần **{price:,}**.")
                 return
 
-            global_profile["bank_balance"] -= price
+            self.bot.db.update_balance(ctx.author.id, None, 'bank_balance', global_profile['bank_balance'] - price)
             
-            # [THÊM] Lưu cả tên server để đảm bảo dữ liệu bền vững
-            new_visa_item = {
-                "item_id": item_id_to_buy,
-                "unique_id": str(uuid.uuid4())[:8],
-                "type": "visa",
-                "visa_type": visa_details["visa_type"],
-                "source_guild_id": ctx.guild.id,
-                "source_guild_name": ctx.guild.name, # Thêm dòng này
+            # Dữ liệu đặc biệt cho thẻ visa
+            visa_custom_data = {
                 "balance": 0,
-                "capacity": visa_details["capacity"]
+                "capacity": visa_details["capacity"],
+                "source_guild_name": ctx.guild.name
             }
             
-            global_profile.setdefault("inventory_global", []).append(new_visa_item)
+            self.bot.db.add_item_to_inventory(ctx.author.id, item_id_to_buy, 1, 'global', custom_data=visa_custom_data)
 
             logger.info(f"User {ctx.author.id} đã mua {item_id_to_buy} với giá {price} từ bank.")
-            await try_send(ctx, content=f"{ICON_SUCCESS} Bạn đã mua thành công **{visa_details['name']}**! Thẻ đã được thêm vào túi đồ toàn cục. Dùng `{COMMAND_PREFIX}visa topup` để nạp tiền.")
+            await try_send(ctx, content=f"{ICON_SUCCESS} Bạn đã mua thành công **{visa_details['name']}**! Thẻ đã được thêm vào túi đồ toàn cục.")
 
         except Exception as e:
             logger.error(f"Lỗi trong lệnh 'visa buy': {e}", exc_info=True)
@@ -70,44 +59,35 @@ class VisaCommandCog(commands.Cog, name="Visa Commands"):
     @visa.command(name="balance", aliases=["bal", "list"])
     @require_travel_check
     async def visa_balance(self, ctx: commands.Context):
-        """Xem số dư của tất cả các thẻ Visa bạn đang sở hữu."""
         try:
-            economy_data = self.bot.economy_data
-            global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
-            inventory_global = global_profile.get("inventory_global", [])
-            
-            visa_items = [item for item in inventory_global if isinstance(item, dict) and item.get("type") == "visa"]
+            inventory_global = self.bot.db.get_inventory(ctx.author.id, location='global')
+            visa_items = [item for item in inventory_global if self.bot.item_definitions.get(item['item_id'], {}).get('type') == 'visa']
 
             if not visa_items:
                 await try_send(ctx, content=f"{ICON_INFO} Bạn chưa sở hữu thẻ Visa nào.")
                 return
 
             embed = nextcord.Embed(title=f"💳 Các Thẻ Visa của {ctx.author.name}", color=nextcord.Color.dark_purple())
-            embed.set_footer(text=f"Dùng {COMMAND_PREFIX}visa topup <ID_thẻ> <số_tiền> để nạp tiền.")
             
-            all_items = self.bot.item_definitions
+            all_items_defs = self.bot.item_definitions
             for visa in visa_items:
-                visa_icon = ICON_ECOBANK if visa.get("visa_type") == "local" else ICON_ECOVISA
-                visa_name = all_items.get(visa['item_id'], {}).get('name', 'Visa không xác định')
-                
-                # [SỬA] Ưu tiên lấy tên đã lưu, cập nhật nếu bot còn trong server
-                source_server_name = visa.get("source_guild_name", "Không rõ")
-                if source_guild_id := visa.get("source_guild_id"):
-                    source_guild = self.bot.get_guild(source_guild_id)
-                    if source_guild:
-                        source_server_name = source_guild.name
-                        visa["source_guild_name"] = source_server_name
-                
+                visa_def = all_items_defs.get(visa['item_id'], {})
+                visa_custom_data = json.loads(visa['custom_data']) if visa['custom_data'] else {}
+
+                visa_icon = ICON_ECOBANK if visa_def.get("visa_type") == "local" else ICON_ECOVISA
+                visa_name = visa_def.get('name', 'Visa không xác định')
+                source_server_name = visa_custom_data.get("source_guild_name", "Không rõ")
+                balance = visa_custom_data.get("balance", 0)
+                capacity = visa_custom_data.get("capacity", 0)
+
                 embed.add_field(
-                    name=f"{visa_icon} {visa_name} (ID: `{visa.get('unique_id')}`)",
-                    value=(f"**Số dư:** `{format_large_number(visa.get('balance', 0))}` / `{format_large_number(visa.get('capacity', 0))}`\n"
-                           f"**Loại:** `{visa.get('visa_type', 'N/A').capitalize()}`\n"
+                    name=f"{visa_icon} {visa_name} (ID Item: `{visa['inventory_id']}`)",
+                    value=(f"**Số dư:** `{format_large_number(balance)}` / `{format_large_number(capacity)}`\n"
+                           f"**Loại:** `{visa_def.get('visa_type', 'N/A').capitalize()}`\n"
                            f"**Nơi phát hành:** `{source_server_name}`"),
                     inline=False
                 )
-
             await try_send(ctx, embed=embed)
-
         except Exception as e:
             logger.error(f"Lỗi trong lệnh 'visa balance': {e}", exc_info=True)
             await try_send(ctx, content=f"{ICON_ERROR} Đã có lỗi xảy ra khi xem số dư Visa.")
