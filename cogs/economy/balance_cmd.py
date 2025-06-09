@@ -14,6 +14,7 @@ class BalanceCommandCog(commands.Cog, name="Balance Command"):
 
     @commands.command(name='balance', aliases=['bal', 'cash', 'money', '$'])
     async def balance(self, ctx: commands.Context, user: nextcord.Member = None):
+        """Xem số dư Ví Local và Ví Global (Bank) của bạn hoặc người khác."""
         target_user = user or ctx.author
         if not ctx.guild:
             await try_send(ctx, content=f"{ICON_ERROR} Vui lòng sử dụng lệnh này trong một server.")
