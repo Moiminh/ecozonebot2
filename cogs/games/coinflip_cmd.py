@@ -5,7 +5,6 @@ import random
 import logging
 from datetime import datetime
 
-from core.database import get_or_create_global_user_profile, get_or_create_user_local_data
 from core.utils import try_send, require_travel_check
 from core.config import CF_COOLDOWN, BASE_CATCH_CHANCE, WANTED_LEVEL_CATCH_MULTIPLIER
 from core.icons import (
@@ -16,7 +15,7 @@ from core.icons import (
 logger = logging.getLogger(__name__)
 
 class CoinflipBetView(nextcord.ui.View):
-    # ... (Giữ nguyên không thay đổi)
+    # Class View không thay đổi
     def __init__(self, ctx, game_cog_instance, bet_amount, choice):
         super().__init__(timeout=120)
         self.ctx = ctx
@@ -41,23 +40,23 @@ class CoinflipBetView(nextcord.ui.View):
     @nextcord.ui.button(label="Cược bằng 🪙Ecoin (An toàn)", style=nextcord.ButtonStyle.green, custom_id="bet_ecoin")
     async def bet_with_ecoin(self, button: nextcord.ui.Button, interaction: nextcord.Interaction):
         await interaction.response.defer()
-        await self.game_cog.play_coinflip_game(self, interaction, "earned")
+        await self.game_cog.play_coinflip_game(self, interaction, "local_balance_earned")
 
     @nextcord.ui.button(label="Cược bằng 🧪Ecobit (Rủi ro)", style=nextcord.ButtonStyle.red, custom_id="bet_ecobit")
     async def bet_with_ecobit(self, button: nextcord.ui.Button, interaction: nextcord.Interaction):
         await interaction.response.defer()
-        await self.game_cog.play_coinflip_game(self, interaction, "adadd")
+        await self.game_cog.play_coinflip_game(self, interaction, "local_balance_adadd")
+
 
 class CoinflipCommandCog(commands.Cog, name="Coinflip Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("CoinflipCommandCog (v5 - Refactored & Patched) initialized.")
+        logger.info("CoinflipCommandCog (SQLite Ready) initialized.")
 
     @commands.command(name='coinflip', aliases=['cf'])
     @commands.guild_only()
     @require_travel_check
     async def coinflip(self, ctx: commands.Context, bet: int, choice: str):
-        """Tung đồng xu, chọn mặt (heads/tails hoặc ngửa/sấp) và đặt cược."""
         if bet <= 0:
             await try_send(ctx, content=f"{ICON_ERROR} Tiền cược phải lớn hơn 0!")
             return
@@ -67,24 +66,18 @@ class CoinflipCommandCog(commands.Cog, name="Coinflip Command"):
             await try_send(ctx, content=f"{ICON_ERROR} Lựa chọn không hợp lệ. Hãy chọn `heads` hoặc `tails` (ngửa/sấp).")
             return
 
-        # [SỬA] Sử dụng cache
-        economy_data = self.bot.economy_data
-        global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
-        local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
-
         now = datetime.now().timestamp()
-        last_cf = global_profile.get("cooldowns", {}).get("coinflip", 0)
+        last_cf = self.bot.db.get_cooldown(ctx.author.id, "coinflip")
         if now - last_cf < CF_COOLDOWN:
             time_left = str(datetime.fromtimestamp(last_cf + CF_COOLDOWN) - datetime.now()).split('.')[0]
             await try_send(ctx, content=f"{ICON_LOADING} Bạn cần chờ: **{time_left}** trước khi chơi tiếp.")
             return
 
+        local_data = self.bot.db.get_or_create_user_local_data(ctx.author.id, ctx.guild.id)
         view = CoinflipBetView(ctx, self, bet, choice)
-        earned_balance = local_data["local_balance"]["earned"]
-        adadd_balance = local_data["local_balance"]["adadd"]
-
-        view.children[0].disabled = earned_balance < bet
-        view.children[1].disabled = adadd_balance < bet
+        
+        view.children[0].disabled = local_data['local_balance_earned'] < bet
+        view.children[1].disabled = local_data['local_balance_adadd'] < bet
 
         if all(btn.disabled for btn in view.children):
             await try_send(ctx, content=f"{ICON_ERROR} Bạn không đủ tiền để cược **{bet:,}** trong cả hai ví.")
@@ -94,28 +87,30 @@ class CoinflipCommandCog(commands.Cog, name="Coinflip Command"):
         if msg:
             view.message = msg
 
-    async def play_coinflip_game(self, view: CoinflipBetView, interaction: nextcord.Interaction, payment_type: str):
+    async def play_coinflip_game(self, view: CoinflipBetView, interaction: nextcord.Interaction, balance_type: str):
         ctx = view.ctx
+        author_id = ctx.author.id
+        guild_id = ctx.guild.id
         bet = view.bet
         choice_input = view.choice
 
-        economy_data = self.bot.economy_data
-        global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
-        local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
-
-        local_data["local_balance"][payment_type] -= bet
-
-        if payment_type == "adadd":
-            wanted_level = global_profile.get("wanted_level", 0.0)
+        global_profile = self.bot.db.get_or_create_global_user_profile(author_id)
+        local_data = self.bot.db.get_or_create_user_local_data(author_id, guild_id)
+        
+        # Trừ tiền cược
+        self.bot.db.update_balance(author_id, guild_id, balance_type, local_data[balance_type] - bet)
+        
+        if balance_type == "local_balance_adadd":
+            wanted_level = global_profile['wanted_level']
             catch_chance = min(0.9, BASE_CATCH_CHANCE + wanted_level * WANTED_LEVEL_CATCH_MULTIPLIER)
             if random.random() < catch_chance:
-                fine_amount = min(local_data["local_balance"]["earned"], int(bet * 0.5))
-                local_data["local_balance"]["earned"] -= fine_amount
-                global_profile["wanted_level"] += 0.1
+                fine_amount = min(local_data["local_balance_earned"], int(bet * 0.5))
+                self.bot.db.update_balance(author_id, guild_id, 'local_balance_earned', local_data['local_balance_earned'] - fine_amount)
+                self.bot.db.update_wanted_level(author_id, wanted_level + 0.1)
                 await view.message.edit(content=f"🚨 **BỊ BẮT!** Bạn bị phạt **{fine_amount:,}** vì dùng `Ecobit` để cá cược!", view=None)
                 return
 
-        global_profile.setdefault("cooldowns", {})["coinflip"] = datetime.now().timestamp()
+        self.bot.db.set_cooldown(author_id, "coinflip", datetime.now().timestamp())
         player_choice = "heads" if choice_input.lower() in ['heads', 'ngửa', 'h', 'n'] else "tails"
         result = random.choice(['heads', 'tails'])
 
@@ -124,15 +119,16 @@ class CoinflipCommandCog(commands.Cog, name="Coinflip Command"):
         
         if player_choice == result:
             winnings = bet * 2
-            # [SỬA LỖI] Tiền thắng được trả về đúng loại ví đã cược
-            winnings_destination = payment_type
-            winnings_icon = ICON_ECOBIT if winnings_destination == "adadd" else ICON_ECOIN
-            local_data["local_balance"][winnings_destination] += winnings
+            current_balance = self.bot.db.get_or_create_user_local_data(author_id, guild_id)[balance_type]
+            self.bot.db.update_balance(author_id, guild_id, balance_type, current_balance + winnings)
+            winnings_icon = ICON_ECOBIT if balance_type == "local_balance_adadd" else ICON_ECOIN
             result_msg = f"🎉 Bạn đoán đúng! Nhận được **{winnings:,}** {winnings_icon}!"
         else:
             result_msg = "😭 Bạn đoán sai, chúc may mắn lần sau!"
-
-        new_total = local_data["local_balance"]["earned"] + local_data["local_balance"]["adadd"]
+        
+        # Lấy lại dữ liệu cuối cùng để hiển thị
+        final_local_data = self.bot.db.get_or_create_user_local_data(author_id, guild_id)
+        new_total = final_local_data["local_balance_earned"] + final_local_data["local_balance_adadd"]
         await view.message.edit(content=f"{header_msg}{result_msg}\nVí Local hiện tại: **{new_total:,}** {ICON_MONEY_BAG}", view=None)
 
 def setup(bot: commands.Bot):
