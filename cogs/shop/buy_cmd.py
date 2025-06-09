@@ -4,7 +4,6 @@ from nextcord.ext import commands
 import logging
 import random
 
-from core.database import get_or_create_global_user_profile, get_or_create_user_local_data
 from core.utils import try_send, format_large_number
 from core.config import BASE_CATCH_CHANCE, WANTED_LEVEL_CATCH_MULTIPLIER
 from core.icons import ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_ECOIN, ICON_ECOBIT
@@ -12,7 +11,6 @@ from core.icons import ICON_SUCCESS, ICON_ERROR, ICON_WARNING, ICON_ECOIN, ICON_
 logger = logging.getLogger(__name__)
 
 class PurchaseConfirmationView(nextcord.ui.View):
-    # Giữ nguyên class View này
     def __init__(self, ctx, buy_cog_instance, item_id, quantity, total_cost, payment_options):
         super().__init__(timeout=180)
         self.ctx = ctx
@@ -54,32 +52,27 @@ class PurchaseConfirmationView(nextcord.ui.View):
 class BuyCommandCog(commands.Cog, name="Buy Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("BuyCommandCog (v4 - Refactored) initialized.")
+        logger.info("BuyCommandCog (SQLite Ready) initialized.")
 
     @commands.command(name='buy')
     async def buy(self, ctx: commands.Context, item_id: str, quantity: int = 1):
-        """Mua một vật phẩm từ cửa hàng với nhiều tùy chọn thanh toán."""
         item_id_to_buy = item_id.lower().strip()
 
         if quantity <= 0:
             await try_send(ctx, content=f"{ICON_ERROR} Số lượng mua phải lớn hơn 0.")
             return
         
-        # [SỬA] Sử dụng item definitions từ cache của bot
         if item_id_to_buy not in self.bot.item_definitions:
-            await try_send(ctx, content=f"{ICON_ERROR} Vật phẩm `{item_id}` không tồn tại trong cửa hàng.")
+            await try_send(ctx, content=f"{ICON_ERROR} Vật phẩm `{item_id}` không tồn tại.")
             return
 
         item_details = self.bot.item_definitions[item_id_to_buy]
         total_cost = item_details.get("price", 0) * quantity
 
-        # [SỬA] Sử dụng cache của bot
-        economy_data = self.bot.economy_data
-        global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
-        local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
+        local_data = self.bot.db.get_or_create_user_local_data(ctx.author.id, ctx.guild.id)
         
         payment_options = []
-        earned_balance = local_data["local_balance"]["earned"]
+        earned_balance = local_data["local_balance_earned"]
         payment_options.append({
             "id": "ecoin",
             "label": f"Trả bằng 🪙Ecoin ({format_large_number(earned_balance)})",
@@ -87,7 +80,7 @@ class BuyCommandCog(commands.Cog, name="Buy Command"):
             "disabled": earned_balance < total_cost
         })
         
-        adadd_balance = local_data["local_balance"]["adadd"]
+        adadd_balance = local_data["local_balance_adadd"]
         payment_options.append({
             "id": "ecobit",
             "label": f"Trả bằng 🧪Ecobit ({format_large_number(adadd_balance)}) - Rủi ro!",
@@ -96,7 +89,7 @@ class BuyCommandCog(commands.Cog, name="Buy Command"):
         })
 
         if all(opt['disabled'] for opt in payment_options):
-            await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền từ bất kỳ nguồn nào để mua vật phẩm này.")
+            await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền để mua vật phẩm này.")
             return
 
         view = PurchaseConfirmationView(ctx, self, item_id_to_buy, quantity, total_cost, payment_options)
@@ -106,42 +99,42 @@ class BuyCommandCog(commands.Cog, name="Buy Command"):
 
     async def process_payment(self, view: PurchaseConfirmationView, interaction: nextcord.Interaction, payment_type: str):
         ctx = view.ctx
+        author_id = ctx.author.id
+        guild_id = ctx.guild.id
         item_id = view.item_id
         quantity = view.quantity
         total_cost = view.total_cost
         
-        # [SỬA] Sử dụng cache của bot và không save thủ công
-        economy_data = self.bot.economy_data
-        global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
-        local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
+        global_profile = self.bot.db.get_or_create_global_user_profile(author_id)
+        local_data = self.bot.db.get_or_create_user_local_data(author_id, guild_id)
         
         is_tainted = False
-        destination_inventory = None
+        destination_location = ""
+        destination_guild_id = None
         destination_name = ""
 
         if payment_type == "ecoin":
-            local_data["local_balance"]["earned"] -= total_cost
+            self.bot.db.update_balance(author_id, guild_id, 'local_balance_earned', local_data['local_balance_earned'] - total_cost)
             is_tainted = False
-            destination_inventory = global_profile.setdefault("inventory_global", [])
+            destination_location = "global"
             destination_name = "Túi Đồ Toàn Cục"
         elif payment_type == "ecobit":
-            wanted_level = global_profile.get("wanted_level", 0.0)
+            wanted_level = global_profile['wanted_level']
             catch_chance = min(0.9, BASE_CATCH_CHANCE + wanted_level * WANTED_LEVEL_CATCH_MULTIPLIER * 0.5)
             if random.random() < catch_chance:
-                fine_amount = min(local_data["local_balance"]["earned"], int(total_cost * 0.2))
-                local_data["local_balance"]["earned"] -= fine_amount
-                global_profile["wanted_level"] = global_profile.get("wanted_level", 0.0) + 0.2
-                final_msg = f"🚨 **BỊ PHÁT HIỆN!** Giao dịch mờ ám của bạn đã bị cảnh sát chú ý! Bạn bị phạt **{fine_amount:,}** `🪙Ecoin`."
-                await view.message.edit(content=final_msg, view=None)
+                fine_amount = min(local_data["local_balance_earned"], int(total_cost * 0.2))
+                self.bot.db.update_balance(author_id, guild_id, 'local_balance_earned', local_data['local_balance_earned'] - fine_amount)
+                self.bot.db.update_wanted_level(author_id, wanted_level + 0.2)
+                await view.message.edit(content=f"🚨 **BỊ PHÁT HIỆN!** Bạn bị phạt **{fine_amount:,}** `🪙Ecoin`.", view=None)
                 return
 
-            local_data["local_balance"]["adadd"] -= total_cost
+            self.bot.db.update_balance(author_id, guild_id, 'local_balance_adadd', local_data['local_balance_adadd'] - total_cost)
             is_tainted = True
-            destination_inventory = local_data.setdefault("inventory_local", [])
+            destination_location = "local"
+            destination_guild_id = guild_id
             destination_name = "Túi Đồ Tại Server"
         
-        new_item_data = {"item_id": item_id, "is_tainted": is_tainted}
-        destination_inventory.extend([new_item_data] * quantity)
+        self.bot.db.add_item_to_inventory(author_id, item_id, quantity, destination_location, destination_guild_id, is_tainted)
 
         item_details = self.bot.item_definitions.get(item_id, {})
         final_msg = f"{ICON_SUCCESS} Giao dịch thành công! Bạn đã mua **{quantity}x {item_details.get('description', item_id)}**.\nVật phẩm được thêm vào **{destination_name}**."
