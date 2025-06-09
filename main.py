@@ -10,8 +10,7 @@ load_dotenv()
 import logging
 
 import threading
-from dashboard import app
-
+from dashboard import run_flask_app
 def run_dashboard():
     app.run(host="0.0.0.0", port=8080)
  
@@ -28,9 +27,8 @@ from core.bot import bot, load_all_cogs
 
 setup_logging(bot_event_loop=bot.loop) 
 main_logger = logging.getLogger(__name__) 
-
 if __name__ == "__main__":
-    threading.Thread(target=run_dashboard, daemon=True).start()
+    threading.Thread(target=run_flask_app, args=(bot,), daemon=True).start()
     main_logger.info("==================================================")
     main_logger.info("Bắt đầu khởi chạy Bot Kinh Tế! (main.py)")
     main_logger.info("==================================================")
