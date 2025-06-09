@@ -2,9 +2,7 @@
 import nextcord
 from nextcord.ext import commands
 import logging
-
-# [SỬA] Import hàm get_or_create_guild_config
-from core.database import get_or_create_guild_config
+import json
 from core.utils import try_send
 from core.icons import ICON_ERROR, ICON_INFO, ICON_MUTE
 
@@ -13,7 +11,7 @@ logger = logging.getLogger(__name__)
 class MuteBotCommandCog(commands.Cog, name="MuteBot Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.debug(f"MuteBotCommandCog initialized.")
+        logger.debug("MuteBotCommandCog (SQLite Ready) initialized.")
 
     @commands.command(name="mutebot")
     @commands.has_guild_permissions(administrator=True)
@@ -21,22 +19,16 @@ class MuteBotCommandCog(commands.Cog, name="MuteBot Command"):
     async def mute_bot_channel(self, ctx: commands.Context, channel: nextcord.TextChannel = None):
         target_channel = channel or ctx.channel
         
-        # [SỬA] Sử dụng cache của bot
-        economy_data = self.bot.economy_data
-        guild_config = get_or_create_guild_config(economy_data, ctx.guild.id)
+        guild_config = self.bot.db.get_or_create_guild_config(ctx.guild.id)
+        muted_channels = json.loads(guild_config['muted_channels'])
         
-        muted_channels_list = guild_config.setdefault("muted_channels", [])
-        
-        if target_channel.id in muted_channels_list:
+        if target_channel.id in muted_channels:
             await try_send(ctx, content=f"{ICON_INFO} Bot đã bị tắt tiếng trong kênh {target_channel.mention} rồi.")
         else:
-            muted_channels_list.append(target_channel.id)
-            # [XÓA] Không cần save thủ công
-            # guild_config["muted_channels"] = muted_channels_list
-            # save_economy_data(economy_data)
+            muted_channels.append(target_channel.id)
+            self.bot.db.update_guild_config_list(ctx.guild.id, 'muted_channels', muted_channels)
             
-            logger.info(f"ADMIN ACTION: {ctx.author.display_name} ({ctx.author.id}) tại guild '{ctx.guild.name}' ({ctx.guild.id}) đã MUTE bot trong kênh {target_channel.name} ({target_channel.id}).")
-            
+            logger.info(f"ADMIN ACTION: {ctx.author.display_name} đã MUTE bot trong kênh {target_channel.name}.")
             await try_send(ctx, content=f"{ICON_MUTE} Bot đã bị **TẮT TIẾNG** (công khai) trong kênh {target_channel.mention}.")
 
     @mute_bot_channel.error
