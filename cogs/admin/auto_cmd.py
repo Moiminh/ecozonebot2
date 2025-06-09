@@ -2,8 +2,7 @@
 import nextcord
 from nextcord.ext import commands
 import logging
-
-from core.database import get_or_create_guild_config
+import json
 from core.utils import try_send
 from core.icons import ICON_SUCCESS, ICON_ERROR
 
@@ -12,24 +11,22 @@ logger = logging.getLogger(__name__)
 class AutoCommandCog(commands.Cog, name="Auto Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("AutoCommandCog (v2 - Refactored) initialized.")
+        logger.info("AutoCommandCog (SQLite Ready) initialized.")
 
     @commands.command(name="auto")
     @commands.has_guild_permissions(administrator=True)
     @commands.guild_only()
     async def auto_toggle_bare_commands(self, ctx: commands.Context):
         """Bật/tắt chế độ lệnh không cần prefix trong kênh hiện tại."""
-        logger.debug(f"Lệnh 'auto' được gọi bởi {ctx.author.name} tại guild '{ctx.guild.name}' ({ctx.guild.id}).")
+        guild_config = self.bot.db.get_or_create_guild_config(ctx.guild.id)
         
-        # [SỬA] Sử dụng cache của bot
-        economy_data = self.bot.economy_data
-        guild_config = get_or_create_guild_config(economy_data, ctx.guild.id)
+        # Dữ liệu từ SQLite là string, cần loads để thành list
+        active_channels_str = guild_config['bare_command_active_channels']
+        active_channels = json.loads(active_channels_str)
         
-        active_channels = guild_config.setdefault("bare_command_active_channels", [])
         channel_id = ctx.channel.id
-        
-        msg_content = ""
         action_taken = ""
+        msg_content = ""
         
         if channel_id in active_channels:
             active_channels.remove(channel_id)
@@ -40,12 +37,10 @@ class AutoCommandCog(commands.Cog, name="Auto Command"):
             action_taken = "BẬT"
             msg_content = f"{ICON_SUCCESS} Đã **BẬT** tính năng lệnh tắt (không cần prefix) cho kênh {ctx.channel.mention} này."
             
-        # [SỬA] Không cần lưu thủ công
-        # guild_config["bare_command_active_channels"] = active_channels
-        # save_economy_data(economy_data)
+        # Cập nhật lại vào CSDL
+        self.bot.db.update_guild_config_list(ctx.guild.id, 'bare_command_active_channels', active_channels)
 
-        logger.info(f"ADMIN ACTION: {ctx.author.display_name} ({ctx.author.id}) đã {action_taken} chế độ 'auto' cho kênh {ctx.channel.name} (ID: {channel_id}) trong guild {ctx.guild.id}.")
-        
+        logger.info(f"ADMIN ACTION: {ctx.author.display_name} đã {action_taken} chế độ 'auto' cho kênh {ctx.channel.name}.")
         await try_send(ctx, content=msg_content)
 
     @auto_toggle_bare_commands.error
