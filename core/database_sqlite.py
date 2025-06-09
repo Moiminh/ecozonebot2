@@ -211,3 +211,37 @@ def remove_item_from_inventory(inventory_id: int):
     conn.execute("DELETE FROM inventories WHERE inventory_id = ?", (inventory_id,))
     conn.commit()
     conn.close()
+
+def get_global_leaderboard():
+    """Lấy danh sách user và bank balance, sắp xếp giảm dần."""
+    conn = get_db_connection()
+    # Sắp xếp theo bank_balance và chỉ lấy những người có balance > 0
+    users = conn.execute("SELECT user_id, bank_balance FROM users WHERE bank_balance > 0 ORDER BY bank_balance DESC").fetchall()
+    conn.close()
+    return users
+
+def get_server_leaderboard(guild_id: int):
+    """Lấy danh sách user và tổng tài sản local tại một server, sắp xếp giảm dần."""
+    conn = get_db_connection()
+    # Tính tổng 2 loại balance và sắp xếp
+    users = conn.execute("""
+        SELECT user_id, (local_balance_earned + local_balance_adadd) as total_local_wealth
+        FROM user_guild_data
+        WHERE guild_id = ? AND total_local_wealth > 0
+        ORDER BY total_local_wealth DESC
+    """, (guild_id,)).fetchall()
+    conn.close()
+    return users
+
+def get_richest_user_in_guild(guild_id: int):
+    """Lấy người dùng giàu nhất (ví local) tại một server."""
+    conn = get_db_connection()
+    richest = conn.execute("""
+        SELECT user_id, (local_balance_earned + local_balance_adadd) as total_local_wealth
+        FROM user_guild_data
+        WHERE guild_id = ?
+        ORDER BY total_local_wealth DESC
+        LIMIT 1
+    """, (guild_id,)).fetchone()
+    conn.close()
+    return richest
