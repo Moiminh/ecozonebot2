@@ -101,9 +101,3 @@ def run_flask_app(bot_instance):
     global discord_bot
     discord_bot = bot_instance
     app.run(host="0.0.0.0", port=8080)
-
-# Phần if __name__ == "__main__" không còn cần thiết nếu bạn chỉ chạy từ main.py
-# Nhưng giữ lại cũng không sao, nó sẽ hữu ích nếu bạn muốn chạy dashboard riêng lẻ để test
-if __name__ == "__main__":
-    print("Để chạy dashboard cùng bot, hãy chạy file main.py")
-    app.run(debug=True, port=5000)
