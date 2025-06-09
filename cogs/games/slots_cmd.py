@@ -5,149 +5,6 @@ import random
 import logging
 from datetime import datetime
 
-from core.database import (
-    load_economy_data,
-    save_economy_data,
-    get_or_create_global_user_profile,
-    get_or_create_user_local_data
-)
-from core.utils import try_send
-from core.config import SLOTS_COOLDOWN, SLOTS_EMOJIS
-from core.icons import (
-    ICON_LOADING, ICON_ERROR, ICON_SLOTS, ICON_MONEY_BAG, 
-    ICON_ECOIN, ICON_ECOBIT, ICON_WARNING
-)
-# Giả sử đã có các hằng số này trong config
-from core.config import BASE_CATCH_CHANCE, WANTED_LEVEL_CATCH_MULTIPLIER 
-
-logger = logging.getLogger(__name__)
-
-# --- View tương tác cho việc đặt cược ---
-class BetConfirmationView(nextcord.ui.View):
-    def __init__(self, ctx, game_cog_instance, bet_amount, game_type):
-        super().__init__(timeout=120)
-        self.ctx = ctx
-        self.game_cog = game_cog_instance
-        self.bet = bet_amount
-        self.game = game_type
-        self.interaction_user = ctx.author
-        self.message = None
-
-    async def interaction_check(self, interaction: nextcord.Interaction) -> bool:
-        if interaction.user.id != self.interaction_user.id:
-            await interaction.response.send_message("Đây không phải là ván cược của bạn!", ephemeral=True)
-            return False
-        return True
-
-    async def on_timeout(self):
-        if self.message:
-            for item in self.children:
-                item.disabled = True
-            await self.message.edit(content="⏳ Ván cược đã hết hạn.", view=self)
-
-    @nextcord.ui.button(label="Cược bằng 🪙Ecoin (An toàn)", style=nextcord.ButtonStyle.green, custom_id="bet_ecoin")
-    async def bet_with_ecoin(self, button: nextcord.ui.Button, interaction: nextcord.Interaction):
-        await interaction.response.defer()
-        if self.game == "slots":
-            await self.game_cog.play_slots_game(self, interaction, "earned")
-
-# bot/cogs/games/slots_cmd.py
-import nextcord
-from nextcord.ext import commands
-import random
-import logging
-from datetime import datetime
-
-from core.database import (
-    load_economy_data,
-    save_economy_data,
-    get_or_create_global_user_profile,
-    get_or_create_user_local_data
-)
-from core.utils import try_send
-from core.config import SLOTS_COOLDOWN, SLOTS_EMOJIS, BASE_CATCH_CHANCE, WANTED_LEVEL_CATCH_MULTIPLIER
-from core.icons import (
-    ICON_LOADING, ICON_ERROR, ICON_SLOTS, ICON_MONEY_BAG, 
-    ICON_ECOIN, ICON_ECOBIT, ICON_WARNING
-)
-
-logger = logging.getLogger(__name__)
-
-# --- View tương tác cho việc đặt cược ---
-class BetConfirmationView(nextcord.ui.View):
-    def __init__(self, ctx, game_cog_instance, bet_amount, game_type):
-# bot/cogs/games/slots_cmd.py
-import nextcord
-from nextcord.ext import commands
-import random
-import logging
-from datetime import datetime
-
-from core.database import (
-    load_economy_data,
-    save_economy_data,
-    get_or_create_global_user_profile,
-    get_or_create_user_local_data
-)
-from core.utils import try_send
-from core.config import (
-    SLOTS_COOLDOWN, SLOTS_EMOJIS, 
-    BASE_CATCH_CHANCE, WANTED_LEVEL_CATCH_MULTIPLIER
-)
-from core.icons import (
-    ICON_LOADING, ICON_ERROR, ICON_SLOTS, ICON_MONEY_BAG, 
-    ICON_ECOIN, ICON_ECOBIT, ICON_WARNING
-)
-from core.travel_manager import handle_travel_event
-
-logger = logging.getLogger(__name__)
-
-# --- View tương tác cho việc đặt cược ---
-class BetConfirmationView(nextcord.ui.View):
-    def __init__(self, ctx, game_cog_instance, bet_amount, game_type):
-        super().__init__(timeout=120)
-        self.ctx = ctx
-        self.game_cog = game_cog_instance
-        self.bet = bet_amount
-        self.game = game_type
-        self.interaction_user = ctx.author
-        self.message = None
-
-    async def interaction_check(self, interaction: nextcord.Interaction) -> bool:
-        if interaction.user.id != self.interaction_user.id:
-            await interaction.response.send_message("Đây không phải là ván cược của bạn!", ephemeral=True)
-            return False
-        return True
-
-    async def on_timeout(self):
-        if self.message:
-            for item in self.children:
-                item.disabled = True
-            await self.message.edit(content="⏳ Ván cược đã hết hạn.", view=self)
-
-    @nextcord.ui.button(label="Cược bằng 🪙Ecoin (An toàn)", style=nextcord.ButtonStyle.green, custom_id="bet_ecoin")
-    async def bet_with_ecoin(self, button: nextcord.ui.Button, interaction: nextcord.Interaction):
-        await interaction.response.defer()
-        if self.game == "slots":
-            await self.game_cog.play_slots_game(self, interaction, "earned")
-
-    @nextcord.ui.button(label="Cược bằng 🧪Ecobit (Rủi ro)", style=nextcord.ButtonStyle.red, custom_id="bet_ecobit")
-    async def bet_with_ecobit(self, button: nextcord.ui.Button, interaction: nextcord.Interaction):
-        await interaction.response.defer()
-        if self.game == "slots":
-            await self.game_cog.play_slots_game(self, interaction, "adadd")
-
-class SlotsCommandCog(commands.Cog, name="Slots Command"):
-    def __init__(self, bot: commands.Bot):
-        self.bot = bot
-        logger.info("SlotsCommandCog (v4 - with Travel) initialized.")
-# bot/cogs/games/slots_cmd.py
-import nextcord
-from nextcord.ext import commands
-import random
-import logging
-from datetime import datetime
-
 from core.database import get_or_create_global_user_profile, get_or_create_user_local_data
 from core.utils import try_send, require_travel_check
 from core.config import SLOTS_COOLDOWN, SLOTS_EMOJIS, BASE_CATCH_CHANCE, WANTED_LEVEL_CATCH_MULTIPLIER
@@ -159,7 +16,7 @@ from core.icons import (
 logger = logging.getLogger(__name__)
 
 class BetConfirmationView(nextcord.ui.View):
-    # Giữ nguyên class View này
+    # ... (Giữ nguyên không thay đổi)
     def __init__(self, ctx, game_cog_instance, bet_amount):
         super().__init__(timeout=120)
         self.ctx = ctx
@@ -193,7 +50,7 @@ class BetConfirmationView(nextcord.ui.View):
 class SlotsCommandCog(commands.Cog, name="Slots Command"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        logger.info("SlotsCommandCog (v5 - Refactored) initialized.")
+        logger.info("SlotsCommandCog (v6 - Refactored & Patched) initialized.")
 
     @commands.command(name='slots', aliases=['sl'])
     @commands.guild_only()
@@ -204,6 +61,7 @@ class SlotsCommandCog(commands.Cog, name="Slots Command"):
             await try_send(ctx, content=f"{ICON_ERROR} Tiền cược phải lớn hơn 0!")
             return
 
+        # [SỬA] Sử dụng cache
         economy_data = self.bot.economy_data
         global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
         local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
@@ -219,10 +77,8 @@ class SlotsCommandCog(commands.Cog, name="Slots Command"):
         earned_balance = local_data["local_balance"]["earned"]
         adadd_balance = local_data["local_balance"]["adadd"]
 
-        if earned_balance < bet:
-            view.children[0].disabled = True
-        if adadd_balance < bet:
-            view.children[1].disabled = True
+        view.children[0].disabled = earned_balance < bet
+        view.children[1].disabled = adadd_balance < bet
 
         if view.children[0].disabled and view.children[1].disabled:
             await try_send(ctx, content=f"{ICON_ERROR} Bạn không có đủ tiền trong bất kỳ ví nào để đặt cược **{bet:,}**.")
@@ -236,7 +92,6 @@ class SlotsCommandCog(commands.Cog, name="Slots Command"):
         ctx = view.ctx
         bet = view.bet
 
-        # [SỬA] Sử dụng cache, không load/save
         economy_data = self.bot.economy_data
         global_profile = get_or_create_global_user_profile(economy_data, ctx.author.id)
         local_data = get_or_create_user_local_data(global_profile, ctx.guild.id)
@@ -266,8 +121,11 @@ class SlotsCommandCog(commands.Cog, name="Slots Command"):
             winnings = bet * 2
         
         if winnings > 0:
-            local_data["local_balance"]["earned"] += winnings
-            final_msg = f"🎉 Chúc mừng! Bạn thắng và nhận được **{winnings:,}** {ICON_ECOIN}!"
+            # [SỬA LỖI] Tiền thắng được trả về đúng loại ví đã cược
+            winnings_destination = payment_type
+            winnings_icon = ICON_ECOBIT if winnings_destination == "adadd" else ICON_ECOIN
+            local_data["local_balance"][winnings_destination] += winnings
+            final_msg = f"🎉 Chúc mừng! Bạn thắng và nhận được **{winnings:,}** {winnings_icon}!"
         else:
             final_msg = "😭 Tiếc quá, bạn thua rồi!"
         
