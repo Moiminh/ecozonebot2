@@ -30,6 +30,5 @@ sleep 2
 echo "[+] Đang khởi động đường hầm với localtunnel cho cổng 8080..."
 echo "[!] Nhấn Ctrl+C để dừng cả đường hầm và bot."
 
-# Chạy localtunnel ở chế độ foreground
-# Lệnh 'lt' là viết tắt của localtunnel
-lt --port 8080
+# Chạy localtunnel với subdomain bạn muốn
+lt --port 8080 --subdomain econzonebot
