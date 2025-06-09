@@ -31,4 +31,4 @@ echo "[+] Đang khởi động đường hầm với localtunnel cho cổng 8080
 echo "[!] Nhấn Ctrl+C để dừng cả đường hầm và bot."
 
 # Chạy localtunnel với subdomain bạn muốn
-lt --port 8080 --subdomain econzonebot
+ssh -R 80:localhost:8080 localhost.run
