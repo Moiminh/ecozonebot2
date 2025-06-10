@@ -76,8 +76,7 @@ EconZone là một bot Discord kinh tế đa năng được xây dựng bằng `
     * Sau khi hoàn tất các bước trên, khởi động bot bằng lệnh:
         ```bash
         python main.py
-        chmod +x start.sh
-        ./start.sh
+       
         ```
 
 ## 📖 Hướng dẫn sử dụng
