@@ -5,7 +5,7 @@ import random
 import logging
 from datetime import datetime
 from core.utils import try_send, require_travel_check
-from core.config import BOT_NAME, COMMAND_PREFIX, FOOTER_TEXT, LAUNDER_FEE, LAUNDER_EXCHANGE_RATE
+from core.config import LAUNDER_EXCHANGE_RATE, BASE_CATCH_CHANCE, WANTED_LEVEL_CATCH_MULTIPLIER
 from core.icons import ICON_ERROR, ICON_SUCCESS, ICON_WARNING, ICON_BANK_MAIN, ICON_ECOBIT, ICON_ECOIN, ICON_INFO
 
 logger = logging.getLogger(__name__)
