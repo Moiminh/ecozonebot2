@@ -75,7 +75,6 @@ INITIAL_COGS = [
     "cogs.tasks.autosave_task",
     "cogs.tasks.dynamic_shop_task",
     "cogs.tasks.survival_task",
-    "cogs.tasks.db_sync_task", # <-- Cog mới để đồng bộ CSDL
     
     # Test commands
     "cogs.test_slash_cog",
