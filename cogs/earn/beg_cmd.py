@@ -7,10 +7,6 @@ import logging
 
 from core.utils import try_send, get_time_left_str, require_travel_check
 from core.config import BEG_COOLDOWN
-from core.config import (
-    BOT_NAME, COMMAND_PREFIX, FOOTER_TEXT,
-    LEVEL_UP_MESSAGES_ENABLED, MAX_LEVEL, XP_PER_MESSAGE, COOLDOWN_TIME
-)
 logger = logging.getLogger(__name__)
 
 class BegCommandCog(commands.Cog, name="Beg Command"):
